@@ -127,28 +127,28 @@ class TBCNNRegressor(torch.nn.Module):
         return output
 
 
-if __name__ == '__main__':
-    import torch
-    import random
-    import numpy as np
-
-    SEED = 0
-    torch.manual_seed(SEED)
-    random.seed(SEED)
-    np.random.seed(SEED)
-
-    nodes = {
-        0: {'type': torch.tensor(1)},
-        1: {'type': torch.tensor(2)},
-        2: {'type': torch.tensor(3)},
-        3: {'type': torch.tensor(4)},
-        4: {'type': torch.tensor(5)},
-    }
-    edge_list = [(0, 1), (1, 2), (2, 3), (3, 4)]
-
-    # Define the model
-    model = TBCNNRegressor(x_size=100, h_size=50, dropout=0.5, vocab_size=20)
-
-    # Forward pass
-    output = model(nodes, edge_list)
-    print(output)
+# if __name__ == '__main__':
+#     import torch
+#     import random
+#     import numpy as np
+#
+#     SEED = 0
+#     torch.manual_seed(SEED)
+#     random.seed(SEED)
+#     np.random.seed(SEED)
+#
+#     nodes = {
+#         0: {'type': torch.tensor(1)},
+#         1: {'type': torch.tensor(2)},
+#         2: {'type': torch.tensor(3)},
+#         3: {'type': torch.tensor(4)},
+#         4: {'type': torch.tensor(5)},
+#     }
+#     edge_list = [(0, 1), (1, 2), (2, 3), (3, 4)]
+#
+#     # Define the model
+#     model = TBCNNRegressor(x_size=100, h_size=50, dropout=0.5, vocab_size=20)
+#
+#     # Forward pass
+#     output = model(nodes, edge_list)
+#     print(output)
