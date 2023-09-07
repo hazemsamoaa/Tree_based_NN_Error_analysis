@@ -1,2 +1,7 @@
 pandas
 javalang
+pytorch-lightning
+wandb
+tensorboard
+torch
+scikit-learn
