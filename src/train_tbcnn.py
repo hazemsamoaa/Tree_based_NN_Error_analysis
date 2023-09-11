@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from metrics import pearson_corr
-from models.tbcnn import TreeConvNet
+from models.tbcnn.tbcnn import TreeConvNet
 from utils import read_pickle
 
 

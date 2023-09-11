@@ -5,3 +5,4 @@ wandb
 tensorboard
 torch
 scikit-learn
+tensorflow-cpu
