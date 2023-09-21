@@ -141,3 +141,5 @@ data/*
 
 notes/*
 !notes/README.md
+!checkpoints/**/*.txt
+checkpoints/*

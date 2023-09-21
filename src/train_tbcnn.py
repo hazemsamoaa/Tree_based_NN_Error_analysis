@@ -4,13 +4,15 @@ https://github.com/crestonbunch/tbcnn/blob/master/classifier/tbcnn/network.py
 """
 
 import argparse
+import os
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from metrics import pearson_corr
+# from metrics import pearson_corr
+from metrics import pearson_corr_v2 as pearson_corr
 from models.tbcnn.tbcnn import TreeConvNet
 from utils import read_pickle
 
@@ -79,7 +81,7 @@ def _onehot(i, total):
     return [1.0 if j == i else 0.0 for j in range(total)]
 
 
-LEARN_RATE = 0.001
+LEARN_RATE = 1e-4
 EPOCHS = 50
 CHECKPOINT_EVERY = 100
 BATCH_SIZE = 1
@@ -116,6 +118,7 @@ def training(args):
     step_count = 0
 
     # Training loop
+    net.train()
     for epoch in range(EPOCHS):
         total_loss = 0.0
 
@@ -159,20 +162,79 @@ def training(args):
                 # torch.save(net.state_dict(), f'checkpoint_step_{step_count}.pth')
 
         # Log per-epoch statistics
-        y_pred_list = torch.tensor(y_pred_list)
-        y_true_list = torch.tensor(y_true_list)
+        y_pred_list = torch.tensor(label_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+        y_true_list = torch.tensor(label_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
 
         p_corr = pearson_corr(y_pred_list, y_true_list)
-        print(f'\nEpoch [{epoch + 1}/{EPOCHS}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}\n')
+        train_msg = f'Epoch [{epoch + 1}/{EPOCHS}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}\n'
+        print(train_msg)
+
+        if args.net_outfile:
+            with open(os.path.join(args.net_outfile, 'train_pred.txt'), "w", encoding="utf-8") as f:
+                f.write(f"TRUE\tPRED\n")
+                for i, j in zip(y_true_list.tolist(), y_pred_list.tolist()):
+                    f.write(f"{i}\t{j}\n")
+
+    # do eval
+    total_samples = len(test_trees)
+    total_loss = 0.0
+
+    # P-CORR
+    y_pred_list = []
+    y_true_list = []
+
+    net.eval()
+    with torch.no_grad():
+        for i, batch in enumerate(batch_samples(
+            gen_samples(test_trees, labels, embeddings, embed_lookup),
+            BATCH_SIZE
+        )):
+            nodes, children, batch_labels = batch
+            nodes = torch.from_numpy(np.array(nodes)).to(device)
+            children = torch.LongTensor(children).to(device)
+            batch_labels = label_scaler.transform(batch_labels)
+            batch_labels = torch.tensor(batch_labels).float().to(device)
+
+            # Forward pass
+            logits = net(nodes, children)
+
+            y_pred_list.append(logits.item())
+            y_true_list.append(batch_labels.item())
+
+            # Compute loss
+            loss = criterion(logits, batch_labels)
+            total_loss += loss.item()
+
+        # Log per-epoch statistics
+        y_pred_list = torch.tensor(label_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+        y_true_list = torch.tensor(label_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+
+        p_corr = pearson_corr(y_pred_list, y_true_list)
+        eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}\n'
+        print(eval_msg)
+
+    if args.net_outfile:
+        torch.save(net.state_dict(), os.path.join(args.net_outfile, f'model.pth'))
+        with open(os.path.join(args.net_outfile, 'output.txt'), "w", encoding="utf-8") as f:
+            f.write(f"TRAIN: {train_msg}")
+            f.write(f" EVAL: {eval_msg}")
+
+        with open(os.path.join(args.net_outfile, 'eval_pred.txt'), "w", encoding="utf-8") as f:
+            f.write(f"TRUE\tPRED\n")
+            for i, j in zip(y_true_list.tolist(), y_pred_list.tolist()):
+                f.write(f"{i}\t{j}\n")
 
     return net
 
 
 if __name__ == '__main__':
+    #  python src/train_tbcnn.py --infile ./data/rdf4j/java_algorithm_trees.pkl --embedfile ./data/rdf4j/java_algorithm_vectors.pkl --net_outfile ./checkpoints/tbcnn/
     parser = argparse.ArgumentParser(description='Train a neural network on tree-structured data.')
     parser.add_argument('--infile', type=str, required=True, help='Input file with training data.')
     parser.add_argument('--embedfile', type=str, required=True, help='Embedding file for learned vectors.')
-    # parser.add_argument('--net_outfile', type=str, required=True, help='Output file for the neural network model.')
+    parser.add_argument('--net_outfile', type=str, required=True, help='Output file for the neural network model.')
 
     args = parser.parse_args()
+    if args.net_outfile:
+        os.makedirs(args.net_outfile, exist_ok=True)
     training(args)
