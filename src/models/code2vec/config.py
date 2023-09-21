@@ -44,6 +44,7 @@ class Config:
 
         # extra ....
         parser.add_argument('--in_dir', type=str, required=True, help='Java files directory.')
+        parser.add_argument('--out_dir', type=str, required=True, help='Code vector directory.')
         parser.add_argument('--jar_path', type=str, default="./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar")
         parser.add_argument('--max_contexts', type=int, default=200)
         parser.add_argument('--max_path_length', type=int, default=8)
@@ -95,6 +96,7 @@ class Config:
         self.USE_TENSORBOARD = args.use_tensorboard
 
         self.IN_DIR = args.in_dir
+        self.OUT_DIR = args.out_dir
         self.JAR_PATH = args.jar_path
         self.MAX_PATH_LENGTH = args.max_path_length
         self.MAX_PATH_WIDTH = args.max_path_width
@@ -145,6 +147,7 @@ class Config:
         self.NUM_TEST_EXAMPLES: int = 0
 
         self.IN_DIR = None
+        self.OUT_DIR = None
         self.JAR_PATH = None
         self.MAX_PATH_LENGTH = 8
         self.MAX_PATH_WIDTH = 2
