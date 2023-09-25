@@ -127,7 +127,7 @@ def _name(node):
 
 
 if __name__ == '__main__':
-    # python sampler_nodes.py --infile "../data/rdf4j/java_algorithms.pkl" --outfile "../data/rdf4j/java_algorithm_nodes.pkl" --limit -1 --per_node -1
+    # python src/sampler_nodes.py --infile "./data/rdf4j/java_algorithms.pkl" --outfile "./data/rdf4j/java_algorithm_nodes.pkl" --limit -1 --per_node -1
     parser = argparse.ArgumentParser(description='Parse nodes from a given data source.')
     parser.add_argument('--infile', type=str, required=True, help='Input pickle file path.')
     parser.add_argument('--outfile', type=str, required=True, help='Output pickle file path.')

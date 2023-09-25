@@ -45,7 +45,7 @@ def _pad_batch(code_vectors, labels):
 
 
 LEARN_RATE = 1e-4
-EPOCHS = 50
+EPOCHS = 1
 CHECKPOINT_EVERY = 100
 BATCH_SIZE = 1
 

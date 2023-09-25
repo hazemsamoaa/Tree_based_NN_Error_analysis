@@ -132,7 +132,7 @@ def _name(node):
 
 
 if __name__ == '__main__':
-    # python sampler_trees.py --infile ./data/rdf4j/java_algorithms.pkl --outfile ./data/rdf4j/java_algorithm_trees.pkl --label_key "value" --minsize 100 --maxsize 2000 --test 15
+    # python src/sampler_trees.py --infile ./data/rdf4j/java_algorithms.pkl --outfile ./data/rdf4j/java_algorithm_trees.pkl --label_key "value" --minsize 100 --maxsize 2000 --test 15
     parser = argparse.ArgumentParser(description='Parse, filter, and serialize trees.')
     parser.add_argument('--infile', type=str, required=True, help='Input pickle file path.')
     parser.add_argument('--outfile', type=str, required=True, help='Output pickle file path.')
