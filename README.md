@@ -41,7 +41,7 @@ python src/train_tbcnn.py --infile ./data/rdf4j/java_algorithm_trees.pkl --embed
 
 #### Step 1
 ```bash
-python src/code2vec.py --load ./data/models/java14_model/saved_model_iter8.release --predict --export_code_vectors --in_dir ./data/java/rdf4j_codes/
+python src/code2vec.py --load ./data/models/java14_model/saved_model_iter8.release --predict --export_code_vectors --in_dir ./data/java/rdf4j_codes/ --out_dir ./data/java/code2vec.pkl
 ```
 
 #### Step 2
