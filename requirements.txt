@@ -6,3 +6,4 @@ tensorboard
 torch
 scikit-learn
 tensorflow-cpu
+pycparser

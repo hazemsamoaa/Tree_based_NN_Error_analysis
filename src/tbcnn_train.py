@@ -237,4 +237,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.net_outfile:
         os.makedirs(args.net_outfile, exist_ok=True)
-    training(args)
+    net = training(args)
