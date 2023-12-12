@@ -154,7 +154,7 @@ def training(args):
 
 
 if __name__ == '__main__':
-    #
+    # python src/tbcc_train.py --train_file ./data/java/train.json --test_file ./data/java/test.json --scaler_file ./data/java/label_scaler.pkl --net_outdir ./data/java/net --vocab_size 49 --max_seq_length 451 --epochs 10
     parser = argparse.ArgumentParser(description='Train a neural network on tree-structured data.')
     parser.add_argument('--train_file', type=str, required=True, help='Input file with training data.')
     parser.add_argument('--test_file', type=str, required=True, help='Input file with training data.')
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_transformer_block', type=int, default=1)
     parser.add_argument('--num_classes', type=int, default=1)
     parser.add_argument('--learning_rate', type=float, default=1e-5)
-    parser.add_argument('--epochs', type=float, default=1)
+    parser.add_argument('--epochs', type=int, default=1)
 
     parser.add_argument('--net_outdir', type=str, required=True, help='Output file for the neural network model.')
 

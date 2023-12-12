@@ -9,10 +9,15 @@ from sklearn.preprocessing import MinMaxScaler
 from models.tbcc.tree import trans_to_sequences
 from utils import read_csv, write_pickle
 from sklearn.model_selection import train_test_split
-
-
+import re
+import javalang
 sys.setrecursionlimit(6000)
 
+
+def remove_comments(text):
+    """Remove C-style /*comments*/ from a string."""
+    p = r'/\*[^*]*\*+([^/*][^*]*\*+)*/|("(\\.|[^"\\])*"|\'(\\.|[^\'\\])*\'|.[^/"\'\\]*)'
+    return ''.join(m.group(2) for m in re.finditer(p, text, re.M | re.S) if m.group(2))
 
 def main(args):
     """
@@ -33,19 +38,21 @@ def main(args):
 
     data = data.iloc[:20]
     for index, row in tqdm(data.iterrows(), total=len(data)):
-        # code_path = os.path.join(os.path.dirname(args.csv_file_path), row["Test case"])
-        # output = row["Runtime in ms"]
-        # if not os.path.exists(code_path):
-        #     continue
-        # code = ""
-        # with open(code_path, "r", encoding="utf-8") as fp:
-        #     code = fp.read()
 
         q2n = []
-        code = row["code"]
-        output = row["label"]
+        code_path = os.path.join(os.path.dirname(args.csv_file_path), row["Test case"])
+        output = row["Runtime in ms"]
+
+        if not os.path.exists(code_path):
+            continue
+
+        code = ""
+        with open(code_path, "r", encoding="utf-8") as fp:
+            code = remove_comments(fp.read())
+
         try:
-            ast = parser.parse(code)
+            tokens = list(javalang.tokenizer.tokenize(code))
+            ast = javalang.parse.parse(code)
             ast = trans_to_sequences(ast)
         except Exception as e:
             print(e)

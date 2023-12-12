@@ -59,5 +59,5 @@ python src/tbcc_prepare_data.py --csv_file_path ./data/tbcc/code_classification_
 
 #### Step 2
 ```bash
-python src/tbcc_train.py --train_file ./data/tbcc/train.json --test_file ./data/tbcc/test.json --scaler_file ./data/tbcc/label_scaler.pkl --net_outdir ./data/tbcc/net
+python src/tbcc_train.py --train_file ./data/java/train.json --test_file ./data/java/test.json --scaler_file ./data/java/label_scaler.pkl --net_outdir ./data/java/net --vocab_size 49 --max_seq_length 451 --epochs 10
 ```
