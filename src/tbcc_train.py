@@ -169,7 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('--ff_dim', type=int, default=512)
     parser.add_argument('--num_transformer_block', type=int, default=1)
     parser.add_argument('--num_classes', type=int, default=1)
-    parser.add_argument('--learning_rate', type=float, default=1e-5)
+    parser.add_argument('--learning_rate', type=float, default=1e-4)
     parser.add_argument('--epochs', type=int, default=1)
 
     parser.add_argument('--net_outdir', type=str, required=True, help='Output file for the neural network model.')

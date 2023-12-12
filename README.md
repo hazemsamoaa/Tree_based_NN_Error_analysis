@@ -54,10 +54,10 @@ python src/code2vec_train.py --infile ./data/java/code2vec.pkl --net_outfile ./c
 
 #### Step 1
 ```bash
-python src/tbcc_prepare_data.py --csv_file_path ./data/tbcc/code_classification_data_for_Ccode.csv --output_dir ./data/tbcc/
+python src/tbcc_prepare_data.py --csv_file_path ./data/java/info.csv --max_seq_length 512 --output_dir ./data/java/
 ```
 
 #### Step 2
 ```bash
-python src/tbcc_train.py --train_file ./data/java/train.json --test_file ./data/java/test.json --scaler_file ./data/java/label_scaler.pkl --net_outdir ./data/java/net --vocab_size 49 --max_seq_length 451 --epochs 10
+python src/tbcc_train.py --train_file ./data/java/train.json --test_file ./data/java/test.json --scaler_file ./data/java/label_scaler.pkl --train_batch_size 8 --test_batch_size 8 --embed_dim 512 --num_heads 8 --ff_dim 512 --num_transformer_block 1 --learning_rate 1e-3 --vocab_size 49 --max_seq_length 451 --epochs 10 --net_outdir ./data/java/net
 ```

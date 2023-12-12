@@ -36,7 +36,6 @@ def main(args):
     error_rows = []
     dataset = []
 
-    data = data.iloc[:20]
     for index, row in tqdm(data.iterrows(), total=len(data)):
 
         q2n = []
@@ -103,6 +102,9 @@ def main(args):
     label_scaler = MinMaxScaler()
     label_scaler.fit(np.expand_dims(train["output"].values, axis=-1))
     write_pickle(label_scaler, os.path.join(args.output_dir, "label_scaler.pkl"))
+
+    with open(os.path.join(args.output_dir, "params.txt"), "w", encoding="utf-8") as fp:
+        fp.write(f"--vocab_size {len(vocabulary) + 1} --max_seq_length {max_seq_length}")
 
 
 if __name__ == "__main__":
