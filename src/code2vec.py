@@ -26,6 +26,20 @@ def load_model_dynamically(config: Config) -> Code2VecModelBase:
     return Code2VecModel(config)
 
 
+def find_java_files(dir_path):
+    java_files = []
+
+    def recursive_search(directory):
+        for item in os.listdir(directory):
+            item_path = os.path.join(directory, item)
+            if os.path.isdir(item_path):
+                recursive_search(item_path)
+            elif item_path.endswith('.java'):
+                java_files.append(item_path)
+
+    recursive_search(dir_path)
+    return java_files
+
 def parse(config: Config):
     """Parse the tree data from a pickle file and create samples.
 
@@ -42,12 +56,23 @@ def parse(config: Config):
         max_path_length=config.MAX_PATH_LENGTH,
         max_path_width=config.MAX_PATH_WIDTH
     )
-    df = pd.read_csv(f"{config.IN_DIR}/rdf4j_codes.csv")
+    df = pd.read_csv(f"{config.IN_DIR}/info.csv")
+    just_filename = True if "/" not in df.iloc[0]["Test case"] else False
 
     data = []
-    g_files = glob.glob(f"{config.IN_DIR}/*.java")
+    
+    # g_files = glob.glob(f"{config.IN_DIR}/*.java")
+    g_files = find_java_files(config.IN_DIR)
+    print(f"We have #{len(g_files)} java files")
     for i, java_file in tqdm(enumerate(g_files), total=len(g_files)):
-        row = df[df["Test case"] == java_file.split("/")[-1]]
+        java_file_test_case = java_file.replace(config.IN_DIR, "").strip()
+        # row = df[df["Test case"] == java_file.split("/")[-1]]
+
+        if just_filename:
+            row = df[df["Test case"] == java_file_test_case.split("/")[-1]]
+        else:
+            row = df[df["Test case"] == java_file_test_case]
+        
         if not len(row) > 0:
             print(f"There's something wrong with retrieving data for `{java_file}`!")
             continue
@@ -58,21 +83,21 @@ def parse(config: Config):
             print(e)
             continue
 
-        representation = model.predict(lines)
+        if lines:
+            representation = model.predict(lines)
+    
+            data.append({
+                'code_vector': np.vstack([rp.code_vector for rp in representation]),
+                'fname': java_file.split("/")[-1],
+                'metadata': {'value': row.to_dict(orient="records")[0]["Runtime in ms"]}
+            })
 
-        data.append({
-            'code_vector': np.vstack([rp.code_vector for rp in representation]),
-            'fname': java_file.split("/")[-1],
-            'metadata': {'value': row.to_dict(orient="records")[0]["Runtime in ms"]}
-        })
-        # break
-
-    # print(data[0])
+    print(f"We have #{len(data)} java files")
     write_pickle(data, os.path.join(config.OUT_DIR, "code2vec.pkl"))
     print('Representation load finished')
 
 
 if __name__ == '__main__':
-    # python src/code2vec.py --load ./data/models/java14_model/saved_model_iter8.release --predict --export_code_vectors --in_dir ./data/java/rdf4j_codes/
+    # python ./src/code2vec.py --load ./models/java14_model/saved_model_iter8.release --predict --export_code_vectors --in_dir ../Datasets/OssBuilds/ --out_dir ./data/
     config = Config(set_defaults=True, load_from_args=True, verify=True)
     parse(config)

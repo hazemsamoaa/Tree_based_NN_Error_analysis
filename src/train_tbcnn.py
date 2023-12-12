@@ -82,7 +82,7 @@ def _onehot(i, total):
 
 
 LEARN_RATE = 1e-4
-EPOCHS = 2
+EPOCHS = 1000
 CHECKPOINT_EVERY = 100
 BATCH_SIZE = 1
 

@@ -14,24 +14,14 @@ from utils import read_pickle
 # Constants
 NUM_FEATURES = 100
 BATCH_SIZE = 256
-EPOCHS = 10
+EPOCHS = 1000
 LEARN_RATE = 0.01
 HIDDEN_NODES = 100
 CHECKPOINT_EVERY = 100
 
 # List of nodes
 NODE_LIST = [
-    'CompilationUnit', 'PackageDeclaration', 'Import', 'ClassDeclaration', 'FieldDeclaration',
-    'MethodDeclaration', 'ReferenceType', 'VariableDeclarator', 'Annotation', 'StatementExpression',
-    'TryStatement', 'MethodInvocation', 'Assignment', 'LocalVariableDeclaration', 'CatchClause',
-    'MemberReference', 'ClassCreator', 'CatchClauseParameter', 'Literal', 'FormalParameter',
-    'TypeArgument', 'ClassReference', 'LambdaExpression', 'AssertStatement', 'ReturnStatement',
-    'BinaryOperation', 'MethodReference', 'Cast', 'ElementValuePair', 'BasicType', 'IfStatement',
-    'BlockStatement', 'ThrowStatement', 'ElementArrayValue', 'ForStatement', 'EnhancedForControl',
-    'VariableDeclaration', 'ConstructorDeclaration', 'SuperConstructorInvocation', 'ArrayCreator',
-    'ArraySelector', 'ArrayInitializer', 'SuperMethodInvocation', 'TryResource', 'WhileStatement',
-    'This', 'Statement', 'ForControl', 'BreakStatement', 'InferredFormalParameter', 'TypeParameter',
-    'TernaryExpression', 'ContinueStatement'
+'CompilationUnit', 'PackageDeclaration', 'Import', 'ClassDeclaration', 'MethodDeclaration', 'Annotation', 'LocalVariableDeclaration', 'StatementExpression', 'FormalParameter', 'ReferenceType', 'IfStatement', 'ReturnStatement', 'VariableDeclarator', 'BasicType', 'MethodInvocation', 'BinaryOperation', 'BlockStatement', 'Literal', 'MemberReference', 'ClassCreator', 'FieldDeclaration', 'TryStatement', 'Assignment', 'CatchClause', 'TypeArgument', 'CatchClauseParameter', 'ClassReference', 'ConstructorDeclaration', 'This', 'LambdaExpression', 'Cast', 'InterfaceDeclaration', 'ForStatement', 'TypeParameter', 'EnhancedForControl', 'ForControl', 'VariableDeclaration', 'VoidClassReference', 'ArrayCreator', 'ArraySelector', 'ArrayInitializer', 'EnumDeclaration', 'EnumBody', 'EnumConstantDeclaration', 'ThrowStatement', 'TernaryExpression', 'AnnotationDeclaration', 'AnnotationMethod', 'ElementValuePair', 'ElementArrayValue', 'ContinueStatement', 'TryResource', 'WhileStatement', 'MethodReference', 'InferredFormalParameter', 'SwitchStatement', 'BreakStatement', 'SwitchStatementCase', 'SuperConstructorInvocation', 'SuperMethodInvocation', 'AssertStatement', 'DoStatement', 'SynchronizedStatement', 'Statement','ExplicitConstructorInvocation','InnerClassCreator','ConstantDeclaration','SuperMemberReference'
 ]
 
 NODE_MAP = {x: i for (i, x) in enumerate(NODE_LIST)}
@@ -112,7 +102,7 @@ def training(args):
     criterion = nn.CrossEntropyLoss()
 
     # Optimizer
-    optimizer = optim.SGD(net.parameters(), lr=LEARN_RATE)
+    optimizer = optim.Adam(net.parameters(), lr=LEARN_RATE)
 
     # Initialize step count
     step_count = 0
@@ -157,7 +147,7 @@ def training(args):
 
 
 if __name__ == '__main__':
-    # python src/vectorizer_ast2vec_node_trees.py --infile ./data/rdf4j/java_algorithm_nodes.pkl --vectors_outfile ./data/rdf4j/java_algorithm_vectors.pkl --net_outfile ./data/rdf4j/java_algorithm_net.pth
+    # python vectorizer_ast2vec_node_trees.py --infile ./data/rdf4j/java_algorithm_nodes.pkl --vectors_outfile ./data/rdf4j/java_algorithm_vectors.pkl --net_outfile ./data/rdf4j/java_algorithm_net.pth
     parser = argparse.ArgumentParser(description='Train a neural network on tree-structured data.')
     parser.add_argument('--infile', type=str, required=True, help='Input file with training data.')
     parser.add_argument('--vectors_outfile', type=str, required=True, help='Output file for learned vectors.')

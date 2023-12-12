@@ -1,7 +1,11 @@
+import sys
 import argparse
 import pprint
 
 from utils import read_csv, read_pickle, write_pickle
+
+
+sys.setrecursionlimit(6000)
 
 
 def main(args):

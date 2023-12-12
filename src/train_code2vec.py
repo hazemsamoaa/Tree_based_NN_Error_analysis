@@ -44,8 +44,8 @@ def _pad_batch(code_vectors, labels):
     return np.concatenate(padded_code_vectors, axis=0), labels
 
 
-LEARN_RATE = 1e-4
-EPOCHS = 1
+LEARN_RATE = 2e-5
+EPOCHS = 1000
 CHECKPOINT_EVERY = 100
 BATCH_SIZE = 1
 
@@ -54,7 +54,7 @@ def training(args):
     data = read_pickle(args.infile)
     num_feats = data[0]["code_vector"].shape[1]
 
-    train, test = train_test_split(data, test_size=0.15, random_state=101)
+    train, test = train_test_split(data, test_size=0.20, random_state=101)
     y_train = np.array([r["metadata"]["value"] for r in train]).reshape(-1, 1)
 
     label_scaler = MinMaxScaler()

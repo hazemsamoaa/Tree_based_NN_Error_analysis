@@ -48,6 +48,9 @@ def parse(args):
 
     label_list = []
 
+    print(f"len of data_source: {len(data_source)}")
+    # raise
+
     for item in data_source:
         root = item['tree']
         label = item['metadata'][args.label_key]
@@ -67,7 +70,7 @@ def parse(args):
             label_list.append([label])
             train_samples.append(datum)
             train_counts[label] += 1
-
+    
     random.shuffle(train_samples)
     random.shuffle(test_samples)
     labels = [0.0]
@@ -77,8 +80,8 @@ def parse(args):
     write_pickle((train_samples, test_samples, labels, label_scaler), args.outfile)
     print('dump finished')
     print('Sampled tree counts: ')
-    print('Training:', train_counts)
-    print('Testing:', test_counts)
+    print('Training:', len(train_counts))
+    print('Testing:', len(test_counts))
 
 
 def _traverse_tree(root):
@@ -132,7 +135,7 @@ def _name(node):
 
 
 if __name__ == '__main__':
-    # python src/sampler_trees.py --infile ./data/rdf4j/java_algorithms.pkl --outfile ./data/rdf4j/java_algorithm_trees.pkl --label_key "value" --minsize 100 --maxsize 2000 --test 15
+    # python sampler_trees.py --infile ./data/rdf4j/java_algorithms.pkl --outfile ./data/rdf4j/java_algorithm_trees.pkl --label_key "value" --minsize 100 --maxsize 2000 --test 15
     parser = argparse.ArgumentParser(description='Parse, filter, and serialize trees.')
     parser.add_argument('--infile', type=str, required=True, help='Input pickle file path.')
     parser.add_argument('--outfile', type=str, required=True, help='Output pickle file path.')
@@ -144,5 +147,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     parse(args)
 
-    java_algo = read_pickle(args.outfile)
-    print(java_algo)
+    # java_algo = read_pickle(args.outfile)
+    # print(java_algo)

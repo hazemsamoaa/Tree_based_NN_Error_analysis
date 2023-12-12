@@ -36,8 +36,8 @@ class ConvLayer(nn.Module):
         batch_indices = batch_indices.repeat(1, num_nodes, max_children, 1)
 
         # Convert to long tensor for index operations
-        batch_indices = batch_indices.long()
-        children = children.unsqueeze(3).long()
+        batch_indices = batch_indices.long().to(nodes.device)
+        children = children.unsqueeze(3).long().to(nodes.device)
 
         # Concatenate batch indices and children indices
         children = torch.cat([batch_indices, children], dim=3)
@@ -85,10 +85,10 @@ class ConvLayer(nn.Module):
         num_siblings = num_siblings.repeat(1, 1, max_children + 1)
 
         # Create a mask of 1's and 0's where 1 means there is a child there
-        mask = torch.cat([torch.zeros((batch_size, max_tree_size, 1)), (children != 0).float()], dim=2)
+        mask = torch.cat([torch.zeros((batch_size, max_tree_size, 1)).to(children.device), (children != 0).float()], dim=2)
 
         # Create child indices for every tree
-        child_indices = torch.arange(-1.0, max_children, 1.0).float()
+        child_indices = torch.arange(-1.0, max_children, 1.0).float().to(children.device)
         child_indices = child_indices.unsqueeze(0).unsqueeze(0).repeat(batch_size, max_tree_size, 1)
         child_indices *= mask
 
@@ -97,7 +97,7 @@ class ConvLayer(nn.Module):
             torch.zeros((batch_size, max_tree_size, 1)),
             torch.full((batch_size, max_tree_size, 1), 0.5),
             torch.zeros((batch_size, max_tree_size, max_children - 1))
-        ], dim=2)
+        ], dim=2).to(children.device)
 
         # Compute the eta_r tensor
         eta_r = torch.where(
@@ -116,7 +116,7 @@ class ConvLayer(nn.Module):
         children = children.float()
 
         # Create a mask of 1's and 0's where 1 means there is a child there
-        mask = torch.cat([torch.zeros((batch_size, max_tree_size, 1)), (children != 0).float()], dim=2)
+        mask = torch.cat([torch.zeros((batch_size, max_tree_size, 1)).to(children.device), (children != 0).float()], dim=2)
 
         # Compute the eta_l tensor
         eta_l = (1.0 - coef_t) * (1.0 - coef_r) * mask
@@ -187,10 +187,11 @@ class TreeConvNet(nn.Module):
     def forward(self, nodes, children):
         # nodes: batch_size x max_tree_size x feature_size
         # children: batch_size x max_tree_size x max_children
+        
         x = nodes
         for layer in self.nodes_list:
             x = layer(x, children)
-
+        
         pooled = self.pooling_layer(x)
         # hidden = F.relu(self.hidden(pooled))
         hidden = self.hidden(pooled)
