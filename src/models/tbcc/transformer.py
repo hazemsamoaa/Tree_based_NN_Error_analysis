@@ -48,9 +48,9 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, embed_dim, num_heads, ff_dim, rate=0.2, device="cpu"):
+    def __init__(self, embed_dim, num_heads, ff_dim, rate=0.2):
         super(TransformerBlock, self).__init__()
-        self.att = MultiHeadSelfAttention(embed_dim, num_heads).to(device)
+        self.att = MultiHeadSelfAttention(embed_dim, num_heads)
         self.ffn = nn.Sequential(
             nn.Linear(embed_dim, ff_dim),
             nn.ReLU(),
@@ -78,16 +78,16 @@ class TokenAndPositionEmbedding(nn.Module):
         self.pos_emb = nn.Embedding(maxlen, embed_dim)
 
     def forward(self, x):
-        positions = torch.arange(0, x.size(1), dtype=torch.long).unsqueeze(0)
+        positions = torch.arange(0, x.size(1), dtype=torch.long, device=x.device).unsqueeze(0)
         x = self.token_emb(x) + self.pos_emb(positions)
         return x
 
 
 class TransformerModel(nn.Module):
-    def __init__(self, vocab_size, embed_dim, num_heads, ff_dim, num_transformer_blocks, max_seq_length, num_classes, device="cpu"):
+    def __init__(self, vocab_size, embed_dim, num_heads, ff_dim, num_transformer_blocks, max_seq_length, num_classes):
         super(TransformerModel, self).__init__()
-        self.embedding_layer = TokenAndPositionEmbedding(max_seq_length, vocab_size, embed_dim).to(device)
-        self.transformer_blocks = nn.ModuleList([TransformerBlock(embed_dim, num_heads, ff_dim, device=device).to(device) for _ in range(num_transformer_blocks)])
+        self.embedding_layer = TokenAndPositionEmbedding(max_seq_length, vocab_size, embed_dim)
+        self.transformer_blocks = nn.ModuleList([TransformerBlock(embed_dim, num_heads, ff_dim) for _ in range(num_transformer_blocks)])
         self.output_layer = nn.Linear(embed_dim, num_classes)
 
     def forward(self, x):
