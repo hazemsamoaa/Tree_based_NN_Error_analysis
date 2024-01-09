@@ -113,7 +113,7 @@ def training(args):
         print(f"[TESTING] X: {batch[0].shape}, Y: {batch[1].shape}")
         break
 
-    net = TransformerModel(args.vocab_size, args.embed_dim, args.num_heads, args.ff_dim, args.num_transformer_block, args.max_seq_length, args.num_classes)
+    net = TransformerModel(args.vocab_size, args.embed_dim, args.num_heads, args.ff_dim, args.num_transformer_block, args.max_seq_length, args.num_classes, device=device)
     net = net.to(device)
 
     # Cross Entropy loss
