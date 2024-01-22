@@ -139,13 +139,12 @@ class ConvLayer(nn.Module):
 
         batch_size, max_tree_size, max_children = children.size()
         feature_size = tree_tensor.size(-1)
-        output_size = weights.size(-1)
 
         # Reshape for matrix multiplication
         x = batch_size * max_tree_size
         y = max_children + 1
-        result = tree_tensor.view(x, y, feature_size)
-        coef = coef.view(x, y, 3)
+        result = tree_tensor.view(x, y, feature_size).float()
+        coef = coef.view(x, y, 3).float()
 
         # MatMul with transpose
         result = torch.matmul(result.permute(0, 2, 1), coef)
@@ -187,11 +186,11 @@ class TreeConvNet(nn.Module):
     def forward(self, nodes, children):
         # nodes: batch_size x max_tree_size x feature_size
         # children: batch_size x max_tree_size x max_children
-        
+
         x = nodes
         for layer in self.nodes_list:
             x = layer(x, children)
-        
+
         pooled = self.pooling_layer(x)
         # hidden = F.relu(self.hidden(pooled))
         hidden = self.hidden(pooled)

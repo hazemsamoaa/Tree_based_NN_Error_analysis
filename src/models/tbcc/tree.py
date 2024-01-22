@@ -4,8 +4,6 @@ from javalang.ast import Node
 def get_token(node):
     token = ''
     primitivetype = ['int', 'byte', 'short', 'long', 'float', 'double', 'boolean', 'char']
-    # print(isinstance(node, Node))
-    # print(type(node))
     if isinstance(node, str):
         if node in primitivetype:
             token = 'PrimitiveType'

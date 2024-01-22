@@ -100,10 +100,10 @@ def training(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     train_dataset = TBCCDataset(data_path=args.train_file)
-    train_loader = DataLoader(train_dataset, batch_size=args.train_batch_size, shuffle=True, collate_fn=lambda b: collate_fn(b, max_seq_length=args.max_seq_length))
+    train_loader = DataLoader(train_dataset, batch_size=args.train_batch_size, shuffle=True, collate_fn=lambda b: collate_fn(b, max_seq_length=args.max_seq_length), drop_last=True)
 
     test_dataset = TBCCDataset(data_path=args.test_file)
-    test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, collate_fn=lambda b: collate_fn(b, max_seq_length=args.max_seq_length))
+    test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, collate_fn=lambda b: collate_fn(b, max_seq_length=args.max_seq_length), drop_last=True)
 
     for batch in train_loader:
         print(f"[TRAINING] X: {batch[0].shape}, Y: {batch[1].shape}")
