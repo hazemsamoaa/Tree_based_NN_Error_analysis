@@ -23,6 +23,8 @@ from models.tree_cnn.prepare_data import (
     prepare_trees as tree_cnn_prepare_trees
 )
 from utils import AttrDict
+from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
+from models.code2vec.config import Config as Code2vecConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -108,6 +110,23 @@ def main(args):
                 device=device,
                 lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=_output_dir
             )
+        if model == "code2vec":
+
+            code2vec_config = Code2vecConfig(
+                set_defaults=False,
+                load_from_args=False,
+                verify=True,
+                model_load_path='./data/models/java14_model/saved_model_iter8.release',
+                predict=True,
+                export_code_vectors=True,
+                dl_framework="tensorflow",
+                jar_path='./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar'
+            )
+            print(f"code2vec_config: {code2vec_config}")
+            train_repr = code2vec_prepare_data(train, code2vec_config)
+            # test_repr = code2vec_prepare_data(test, code2vec_config)
+            print(train_repr.keys())
+            raise
         else:
             logger.info(f"failed on {model} ...")
 

@@ -43,8 +43,8 @@ class Config:
                             help='use tensorboard during training')
 
         # extra ....
-        parser.add_argument('--in_dir', type=str, required=True, help='Java files directory.')
-        parser.add_argument('--out_dir', type=str, required=True, help='Code vector directory.')
+        parser.add_argument('--in_dir', type=str, required=False, help='Java files directory.')
+        parser.add_argument('--out_dir', type=str, required=False, help='Code vector directory.')
         parser.add_argument('--jar_path', type=str, default="./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar")
         parser.add_argument('--max_contexts', type=int, default=200)
         parser.add_argument('--max_path_length', type=int, default=8)
@@ -101,58 +101,61 @@ class Config:
         self.MAX_PATH_LENGTH = args.max_path_length
         self.MAX_PATH_WIDTH = args.max_path_width
 
-    def __init__(self, set_defaults: bool = False, load_from_args: bool = False, verify: bool = False):
-        self.NUM_TRAIN_EPOCHS: int = 0
-        self.SAVE_EVERY_EPOCHS: int = 0
-        self.TRAIN_BATCH_SIZE: int = 0
-        self.TEST_BATCH_SIZE: int = 0
-        self.TOP_K_WORDS_CONSIDERED_DURING_PREDICTION: int = 0
-        self.NUM_BATCHES_TO_LOG_PROGRESS: int = 0
-        self.NUM_TRAIN_BATCHES_TO_EVALUATE: int = 0
-        self.READER_NUM_PARALLEL_BATCHES: int = 0
-        self.SHUFFLE_BUFFER_SIZE: int = 0
-        self.CSV_BUFFER_SIZE: int = 0
-        self.MAX_TO_KEEP: int = 0
+    def __init__(self, set_defaults: bool = False, load_from_args: bool = False, verify: bool = False, **kwargs):
+        self.NUM_TRAIN_EPOCHS: int = kwargs.get("num_train_epochs", 0)
+        self.SAVE_EVERY_EPOCHS: int = kwargs.get("save_every_epochs", 0)
+        self.TRAIN_BATCH_SIZE: int = kwargs.get("train_batch_size", 0)
+        self.TEST_BATCH_SIZE: int = kwargs.get("test_batch_size", 0)
+        self.TOP_K_WORDS_CONSIDERED_DURING_PREDICTION: int = kwargs.get("top_k_words_considered_during_prediction", 0)
+        self.NUM_BATCHES_TO_LOG_PROGRESS: int = kwargs.get("num_batches_to_log_progress", 0)
+        self.NUM_TRAIN_BATCHES_TO_EVALUATE: int = kwargs.get("num_train_batches_to_evaluate", 0)
+        self.READER_NUM_PARALLEL_BATCHES: int = kwargs.get("reader_num_parallel_batches", 0)
+        self.SHUFFLE_BUFFER_SIZE: int = kwargs.get("shuffle_buffer_size", 0)
+        self.CSV_BUFFER_SIZE: int = kwargs.get("csv_buffer_size", 0)
+        self.MAX_TO_KEEP: int = kwargs.get("max_to_keep", 0)
 
         # model hyper-params
-        self.MAX_CONTEXTS: int = 0
-        self.MAX_TOKEN_VOCAB_SIZE: int = 0
-        self.MAX_TARGET_VOCAB_SIZE: int = 0
-        self.MAX_PATH_VOCAB_SIZE: int = 0
-        self.DEFAULT_EMBEDDINGS_SIZE: int = 0
-        self.TOKEN_EMBEDDINGS_SIZE: int = 0
-        self.PATH_EMBEDDINGS_SIZE: int = 0
-        self.CODE_VECTOR_SIZE: int = 0
-        self.TARGET_EMBEDDINGS_SIZE: int = 0
-        self.DROPOUT_KEEP_RATE: float = 0
-        self.SEPARATE_OOV_AND_PAD: bool = False
+        self.MAX_CONTEXTS: int = kwargs.get("max_contexts", 0)
+        self.MAX_TOKEN_VOCAB_SIZE: int = kwargs.get("max_token_vocab_size", 0)
+        self.MAX_TARGET_VOCAB_SIZE: int = kwargs.get("max_target_vocab_size", 0)
+        self.MAX_PATH_VOCAB_SIZE: int = kwargs.get("max_path_vocab_size", 0)
+        self.DEFAULT_EMBEDDINGS_SIZE: int = kwargs.get("default_embedding_size", 0)
+        self.TOKEN_EMBEDDINGS_SIZE: int = kwargs.get("token_embedding_size", 0)
+        self.PATH_EMBEDDINGS_SIZE: int = kwargs.get("path_embedding_size", 0)
+        self.CODE_VECTOR_SIZE: int = kwargs.get("code_vector_size", 0)
+        self.TARGET_EMBEDDINGS_SIZE: int = kwargs.get("target_embedding_size", 0)
+        self.DROPOUT_KEEP_RATE: float = kwargs.get("dropout_keep_rate", 0)
+        self.SEPARATE_OOV_AND_PAD: bool = kwargs.get("separate_oov_and_pad", False)
 
         # Automatically filled by `args`.
-        self.PREDICT: bool = False  # TODO: update README;
-        self.MODEL_SAVE_PATH: Optional[str] = None
-        self.MODEL_LOAD_PATH: Optional[str] = None
-        self.TRAIN_DATA_PATH_PREFIX: Optional[str] = None
-        self.TEST_DATA_PATH: Optional[str] = ''
-        self.RELEASE: bool = False
-        self.EXPORT_CODE_VECTORS: bool = False
-        self.SAVE_W2V: Optional[str] = None  # TODO: update README;
-        self.SAVE_T2V: Optional[str] = None  # TODO: update README;
-        self.VERBOSE_MODE: int = 0
-        self.LOGS_PATH: Optional[str] = None
-        self.DL_FRAMEWORK: str = ''  # in {'keras', 'tensorflow'}
-        self.USE_TENSORBOARD: bool = False
+        self.PREDICT: bool = kwargs.get("predict", False)  # TODO: update README;
+        self.MODEL_SAVE_PATH: Optional[str] = kwargs.get("model_save_path", None)
+        self.MODEL_LOAD_PATH: Optional[str] = kwargs.get("model_load_path", None)
+        self.TRAIN_DATA_PATH_PREFIX: Optional[str] = kwargs.get("train_data_path_prefix", None)
+        self.TEST_DATA_PATH: Optional[str] = kwargs.get("test_data_path", "")
+        self.RELEASE: bool = kwargs.get("release", False)
+        self.EXPORT_CODE_VECTORS: bool = kwargs.get("export_code_vectors", False)
+        self.SAVE_W2V: Optional[str] = kwargs.get("save_w2v", None)  # TODO: update README;
+        self.SAVE_T2V: Optional[str] = kwargs.get("save_t2v", None)  # TODO: update README;
+        self.VERBOSE_MODE: int = kwargs.get("verbose_mode", 0)
+        self.LOGS_PATH: Optional[str] = kwargs.get("logs_path", None)
+        self.DL_FRAMEWORK: str = kwargs.get("dl_framework", "")  # in {'keras', 'tensorflow'}
+        self.USE_TENSORBOARD: bool = kwargs.get("use_tensorboard", False)
 
         # Automatically filled by `Code2VecModelBase._init_num_of_examples()`.
-        self.NUM_TRAIN_EXAMPLES: int = 0
-        self.NUM_TEST_EXAMPLES: int = 0
+        self.NUM_TRAIN_EXAMPLES: int = kwargs.get("num_train_examples", 0)
+        self.NUM_TEST_EXAMPLES: int = kwargs.get("num_test_examples", 0)
 
-        self.IN_DIR = None
-        self.OUT_DIR = None
-        self.JAR_PATH = None
-        self.MAX_PATH_LENGTH = 8
-        self.MAX_PATH_WIDTH = 2
+        self.IN_DIR = kwargs.get("in_dir", None)
+        self.OUT_DIR = kwargs.get("out_dir", None)
+        self.JAR_PATH = kwargs.get("jar_path", None)
+        self.MAX_PATH_LENGTH = kwargs.get("max_path_length", 2)
+        self.MAX_PATH_WIDTH = kwargs.get("max_path_width", 2)
 
-        self.__logger: Optional[logging.Logger] = None
+        self.__logger: Optional[logging.Logger] = kwargs.get("logger", None)
+
+        # custom
+        self.PREDICT = kwargs.get("predict", False)
 
         if set_defaults:
             self.set_defaults()

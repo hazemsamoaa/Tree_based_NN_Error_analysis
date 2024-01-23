@@ -60,7 +60,7 @@ def parse(config: Config):
     just_filename = True if "/" not in df.iloc[0]["Test case"] else False
 
     data = []
-    
+
     # g_files = glob.glob(f"{config.IN_DIR}/*.java")
     g_files = find_java_files(config.IN_DIR)
     print(f"We have #{len(g_files)} java files")
@@ -72,7 +72,7 @@ def parse(config: Config):
             row = df[df["Test case"] == java_file_test_case.split("/")[-1]]
         else:
             row = df[df["Test case"] == java_file_test_case]
-        
+
         if not len(row) > 0:
             print(f"There's something wrong with retrieving data for `{java_file}`!")
             continue
@@ -85,7 +85,7 @@ def parse(config: Config):
 
         if lines:
             representation = model.predict(lines)
-    
+
             data.append({
                 'code_vector': np.vstack([rp.code_vector for rp in representation]),
                 'fname': java_file.split("/")[-1],
@@ -100,4 +100,5 @@ def parse(config: Config):
 if __name__ == '__main__':
     # python ./src/code2vec.py --load ./models/java14_model/saved_model_iter8.release --predict --export_code_vectors --in_dir ../Datasets/OssBuilds/ --out_dir ./data/
     config = Config(set_defaults=True, load_from_args=True, verify=True)
-    parse(config)
+    print(config)
+    # parse(config)
