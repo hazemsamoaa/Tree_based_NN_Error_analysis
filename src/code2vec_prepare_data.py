@@ -3,13 +3,12 @@ import os
 
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
-
 from extract_ast_paths import Extractor
 from models.code2vec.config import Config
 from models.code2vec.model_base import Code2VecModelBase
-from utils import AttrDict
-from utils import write_pickle
+from tqdm.auto import tqdm
+
+from utils import AttrDict, write_pickle
 
 SHOW_TOP_CONTEXTS = 10
 
@@ -100,5 +99,5 @@ def parse(config: Config):
 if __name__ == '__main__':
     # python ./src/code2vec.py --load ./models/java14_model/saved_model_iter8.release --predict --export_code_vectors --in_dir ../Datasets/OssBuilds/ --out_dir ./data/
     config = Config(set_defaults=True, load_from_args=True, verify=True)
-    print(config)
+    print(config.__dict__)
     # parse(config)

@@ -1,11 +1,10 @@
 import logging
 
 import numpy as np
-from tqdm.auto import tqdm
-
 from extract_ast_paths import Extractor
 from models.code2vec.config import Config
 from models.code2vec.model_base import Code2VecModelBase
+from tqdm.auto import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,7 +24,7 @@ def load_model_dynamically(config: Config) -> Code2VecModelBase:
     return Code2VecModel(config)
 
 
-def prepare_data(data, config: Config):
+def prepare_data(data, config: Config, test=None):
     """Parse the tree data from a pickle file and create samples.
 
     Args:
@@ -38,17 +37,34 @@ def prepare_data(data, config: Config):
         max_path_length=config.MAX_PATH_LENGTH,
         max_path_width=config.MAX_PATH_WIDTH
     )
-    data_with_repr = []
+    data_with_repr, test_with_repr = [], []
+
     for row in tqdm(data, total=len(data)):
         try:
             lines, hash_to_string_dict = path_extractor.extract_paths(row["path"])
-        except ValueError as e:
+        except Exception as e:
             print(e)
+            # raise
             continue
 
         if lines:
             representation = model.predict(lines)
             row["representation"] = np.vstack([rp.code_vector for rp in representation])
             data_with_repr.append(row)
+        
 
-    return data_with_repr
+    if test and isinstance(test, list):
+        for row in tqdm(test, total=len(test)):
+            try:
+                lines, hash_to_string_dict = path_extractor.extract_paths(row["path"])
+            except Exception as e:
+                print(e)
+                # raise
+                continue
+
+            if lines:
+                representation = model.predict(lines)
+                row["representation"] = np.vstack([rp.code_vector for rp in representation])
+                test_with_repr.append(row)
+
+    return data_with_repr, test_with_repr

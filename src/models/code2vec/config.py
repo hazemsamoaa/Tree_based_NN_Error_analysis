@@ -78,8 +78,8 @@ class Config:
         self.DROPOUT_KEEP_RATE = 0.75
         self.SEPARATE_OOV_AND_PAD = False
 
-    def load_from_args(self):
-        args = self.arguments_parser().parse_args()
+    def load_from_args(self, args=None):
+        args = self.arguments_parser().parse_args() if not args else args
         # Automatically filled, do not edit:
         self.PREDICT = args.predict
         self.MODEL_SAVE_PATH = args.save_path
@@ -160,7 +160,7 @@ class Config:
         if set_defaults:
             self.set_defaults()
         if load_from_args:
-            self.load_from_args()
+            self.load_from_args(args=kwargs.get("args", None))
         if verify:
             self.verify()
 

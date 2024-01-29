@@ -7,24 +7,22 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import torch
+from data_utils import find_java_files, parse_java_code_to_ast
+from models.code2vec.config import Config as Code2vecConfig
+from models.code2vec.net import Code2vecNet
+from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
+from models.code2vec.trainer import trainer as code2vec_trainer
+from models.tree_cnn.embedding import TreeCNNEmbedding
+from models.tree_cnn.prepare_data import prepare_nodes as tree_cnn_prepare_nodes
+from models.tree_cnn.prepare_data import prepare_trees as tree_cnn_prepare_trees
+from models.tree_cnn.tbcnn import TreeConvNet
+from models.tree_cnn.trainer import node_trainer as tree_cnn_node_trainer
+from models.tree_cnn.trainer import trainer as tree_cnn_trainer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
 
-from data_utils import find_java_files, parse_java_code_to_ast
-from models.tree_cnn.embedding import TreeCNNEmbedding
-from models.tree_cnn.trainer import (
-    node_trainer as tree_cnn_node_trainer,
-    trainer as tree_cnn_trainer
-)
-from models.tree_cnn.tbcnn import TreeConvNet
-from models.tree_cnn.prepare_data import (
-    prepare_nodes as tree_cnn_prepare_nodes,
-    prepare_trees as tree_cnn_prepare_trees
-)
 from utils import AttrDict
-from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
-from models.code2vec.config import Config as Code2vecConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -111,22 +109,23 @@ def main(args):
                 lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=_output_dir
             )
         if model == "code2vec":
+            # _output_dir = os.path.join(args.output_dir, f"tree_cnn_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+            _output_dir = os.path.join(args.output_dir, f"tree_cnn")
+            os.makedirs(_output_dir, exist_ok=True)
 
-            code2vec_config = Code2vecConfig(
-                set_defaults=False,
-                load_from_args=False,
-                verify=True,
-                model_load_path='./data/models/java14_model/saved_model_iter8.release',
-                predict=True,
-                export_code_vectors=True,
-                dl_framework="tensorflow",
-                jar_path='./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar'
+            logger.info(f"starting on extractign representation based on {model} ...")
+            code2vec_config = Code2vecConfig(set_defaults=True, load_from_args=True, verify=True, args=args)
+            train_data, test_data = code2vec_prepare_data(train, code2vec_config, test=test)
+
+            model = Code2vecNet(feature_size=train_data[0]["representation"].shape[1]).to(device)
+            code2vec_trainer(
+                model,
+                train=train_data,
+                test=test_data,
+                y_scaler=y_scaler,
+                device=device,
+                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=_output_dir
             )
-            print(f"code2vec_config: {code2vec_config}")
-            train_repr = code2vec_prepare_data(train, code2vec_config)
-            # test_repr = code2vec_prepare_data(test, code2vec_config)
-            print(train_repr.keys())
-            raise
         else:
             logger.info(f"failed on {model} ...")
 
@@ -146,6 +145,29 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')
     parser.add_argument('--batch_size', type=int, default=8, help='input batch size for training (default: 8)')
     parser.add_argument('--checkpoint', type=int, default=-1, help='number of checkpoint to log (default: -1)')
+
+    # Code2Vec
+    parser.add_argument("-d", "--data", dest="data_path", help="path to preprocessed dataset", required=False)
+    parser.add_argument("-te", "--test", dest="test_path", help="path to test file", metavar="FILE", required=False, default='')
+    parser.add_argument("-s", "--save", dest="save_path", help="path to save the model file", metavar="FILE", required=False)
+    parser.add_argument("-w2v", "--save_word2v", dest="save_w2v", help="path to save the tokens embeddings file", metavar="FILE", required=False)
+    parser.add_argument("-t2v", "--save_target2v", dest="save_t2v", help="path to save the targets embeddings file", metavar="FILE", required=False)
+    parser.add_argument("-l", "--load", dest="load_path", help="path to load the model from", metavar="FILE", required=False)
+    parser.add_argument('--save_w2v', dest='save_w2v', required=False, help="save word (token) vectors in word2vec format")
+    parser.add_argument('--save_t2v', dest='save_t2v', required=False, help="save target vectors in word2vec format")
+    parser.add_argument('--export_code_vectors', action='store_true', required=False, help="export code vectors for the given examples")
+    parser.add_argument('--release', action='store_true', help='if specified and loading a trained model, release the loaded model for a lower model size.')
+    parser.add_argument('--predict', action='store_true', help='execute the interactive prediction shell')
+    parser.add_argument("-fw", "--framework", dest="dl_framework", choices=['keras', 'tensorflow'], default='tensorflow', help="deep learning framework to use.")
+    parser.add_argument("-v", "--verbose", dest="verbose_mode", type=int, required=False, default=1, help="verbose mode (should be in {0,1,2}).")
+    parser.add_argument("-lp", "--logs-path", dest="logs_path", metavar="FILE", required=False, help="path to store logs into. if not given logs are not saved to file.")
+    parser.add_argument('-tb', '--tensorboard', dest='use_tensorboard', action='store_true', help='use tensorboard during training')
+    parser.add_argument('--in_dir', type=str, required=False, help='Java files directory.')
+    parser.add_argument('--out_dir', type=str, required=False, help='Code vector directory.')
+    parser.add_argument('--jar_path', type=str, default="./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar")
+    parser.add_argument('--max_contexts', type=int, default=200)
+    parser.add_argument('--max_path_length', type=int, default=8)
+    parser.add_argument('--max_path_width', type=int, default=2)
 
     # parser.add_argument('--save-model', action='store_true', default=False, help='For Saving the current Model')
     args = parser.parse_args()
