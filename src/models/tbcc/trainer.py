@@ -1,53 +1,82 @@
+import argparse
 import logging
 import os
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from metrics import pearson_corr_v2 as pearson_corr
-from models.code2vec.net import Code2vecNet
+from models.tbcc.transformer import TransformerModel
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader, Dataset
+
+from utils import read_pickle
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+class TBCCDataset(Dataset):
+    def __init__(self, data, scaler):
+        self.data = data
+        self.scaler = scaler
 
-def batch_samples(data, batch_size):
-    """Batch samples from a generator"""
-    representations, labels, records = [], [], []
-    samples = 0
-    for x in data:
-        representations.append(x["representation"])
-        labels.append(x["y"])
-        records.append(x)
-        
-        samples += 1
-        if samples >= batch_size:
-            yield _pad_batch(representations, labels, records)
-            representations, labels, records = [], [], []
-            samples = 0
+    def __len__(self):
+        return len(self.data)
 
-
-def _pad_batch(representations, labels, records):
-    if not representations:
-        return [], [], []
-
-    max_rows = max(arr.shape[0] for arr in representations)
-    max_cols = representations[0].shape[1]
-    padded_representations = [
-        np.expand_dims(np.vstack([arr, np.zeros((max_rows - arr.shape[0], max_cols))]), axis=0)
-        for arr in representations
-    ]
-
-    labels = np.array(labels)
-
-    return np.concatenate(padded_representations, axis=0), labels, records
+    def __getitem__(self, idx):
+        return {
+            "x": torch.tensor(self.data[idx]["q2n"]).long(),
+            "y": torch.tensor(self.scaler.transform([[self.data[idx]["y"]]])).float()[0],
+            "row": self.data[idx]
+        }
 
 
+def collate_fn(batch, max_seq_length=None):
+    x_list = [item['x'] for item in batch]
+    y_list = [item['y'] for item in batch]
+    records = [item['row'] for item in batch]
 
-def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=1, checkpoint=1000, output_dir=None):
-    output_dir = output_dir if output_dir and len(output_dir) > 0 else None
+    # Truncate if necessary and pad each sequence to max_seq_length
+    if max_seq_length is not None:
+        x_padded = []
+        for x in x_list:
+            x = x[:max_seq_length]  # Truncate
+            pad_size = max_seq_length - len(x)  # Calculate padding size
+            if pad_size > 0:
+                # Pad sequence to the desired length
+                x = F.pad(x, (0, pad_size), 'constant', 0)
+            x_padded.append(x)
+        x_padded = torch.stack(x_padded)
+    else:
+        x_padded = pad_sequence(x_list, batch_first=True, padding_value=0)
+
+    y_stacked = torch.stack(y_list)
+
+    return x_padded, y_stacked, records
+
+
+def trainer(
+    model, train, test, y_scaler, device, max_seq_length=510,
+    lr=1e-3, batch_size=8, epochs=1, checkpoint=1000, output_dir=None
+):
+    train_dataset = TBCCDataset(data=train, scaler=y_scaler)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda b: collate_fn(b, max_seq_length=max_seq_length))
+
+    test_dataset = TBCCDataset(data=test, scaler=y_scaler)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=lambda b: collate_fn(b, max_seq_length=max_seq_length))
+
+    for batch in train_loader:
+        logger.info(f"[TRAINING] X: {batch[0].shape}, Y: {batch[1].shape}")
+        break
+
+    for batch in test_loader:
+        logger.info(f"[TESTING] X: {batch[0].shape}, Y: {batch[1].shape}")
+        break
+
     # Cross Entropy loss
     criterion = nn.MSELoss()
 
@@ -55,7 +84,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # Initialize step count
-    total_samples = len(train)
+    total_samples = len(train_dataset)
     step_count = 0
 
     # Training loop
@@ -68,31 +97,26 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
         y_pred_list = []
         y_true_list = []
 
-        for i, batch in enumerate(batch_samples(train, batch_size=batch_size)):
-            batch_code_vectors, batch_labels, batch_records = batch
-
-            batch_code_vectors = torch.from_numpy(batch_code_vectors).float().to(device)
-            batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1))
-            batch_labels = torch.tensor(batch_labels).float().to(device)
+        for batch_inputs, batch_labels, batch_records in train_loader:
+            batch_inputs, batch_labels = batch_inputs.to(device), batch_labels.to(device)
 
             # Zero the parameter gradients
             optimizer.zero_grad()
 
             # Forward pass
-            logits = model(batch_code_vectors)
-            
+            logits = model(batch_inputs)
+
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
 
             item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
             y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
             y_true_list += y_true if isinstance(y_true, list) else [y_true]
-
+            
             # Compute loss
             loss = criterion(logits, batch_labels)
             total_loss += loss.item()
 
-            # Backward pass and optimization
             loss.backward()
             optimizer.step()
 
@@ -104,6 +128,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
                 logger.info(f'Epoch [{epoch + 1}/{epochs}], Step [{step_count}], Loss: {total_loss / (i + 1):.4f}')
                 # torch.save(net.state_dict(), f'checkpoint_step_{step_count}.pth')
 
+        
         # Log per-epoch statistics
         y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
         y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
@@ -118,7 +143,8 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
                 for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
                     f.write(f"{k}\t{i}\t{j}\n")
 
-    total_samples = len(test)
+
+    total_samples = len(test_dataset)
     total_loss = 0.0
 
     # P-CORR
@@ -128,29 +154,23 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
 
     model.eval()
     with torch.no_grad():
-        for i, batch in enumerate(batch_samples(test, batch_size=batch_size)):
-            batch_code_vectors, batch_labels, batch_records = batch
-
-            batch_code_vectors = torch.from_numpy(batch_code_vectors).float().to(device)
-            batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1))
-            batch_labels = torch.tensor(batch_labels).float().to(device)
+        for batch_inputs, batch_labels, batch_records in test_loader:
+            batch_inputs, batch_labels = batch_inputs.to(device), batch_labels.to(device)
 
             # Forward pass
-            logits = model(batch_code_vectors)
-            
-            # y_pred_list.append(logits.item())
-            # y_true_list.append(batch_labels.item())
+            logits = model(batch_inputs)
+
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
 
             item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
             y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
             y_true_list += y_true if isinstance(y_true, list) else [y_true]
-
+            
             # Compute loss
             loss = criterion(logits, batch_labels)
             total_loss += loss.item()
-
+        
         # Log per-epoch statistics
         y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
         y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
@@ -158,6 +178,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
         p_corr = pearson_corr(y_pred_list, y_true_list)
         eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
         logger.info(eval_msg)
+
 
     if output_dir:
         torch.save(model.state_dict(), os.path.join(output_dir, f'model.pth'))
@@ -169,5 +190,3 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
             f.write(f"FILE\tTRUE\tPRED\n")
             for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
                 f.write(f"{k}\t{i}\t{j}\n")
-
-    return model

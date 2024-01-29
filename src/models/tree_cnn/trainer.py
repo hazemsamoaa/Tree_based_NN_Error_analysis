@@ -91,11 +91,13 @@ def node_trainer(samples, model, node_map, device, lr=1e-3, batch_size=8, epochs
     return model
 
 
-def gen_samples(trees, labels, vectors, vector_lookup):
+def gen_samples(records, vectors, vector_lookup):
     """Creates a generator that returns a tree in BFS order with each node
     replaced by its vector embedding, and a child lookup table."""
 
-    for tree, label in zip(trees, labels):
+    for row in records:
+        tree, label = row["_tree"], row["y"]
+
         nodes = []
         children = []
         label = [label]
@@ -112,30 +114,33 @@ def gen_samples(trees, labels, vectors, vector_lookup):
                 children[parent_ind].append(node_ind)
             nodes.append(vectors[vector_lookup[node['node']]])
 
-        yield nodes, children, label
+        yield nodes, children, label, row
 
 
 def batch_samples(gen, batch_size):
     """Batch samples from a generator"""
-    nodes, children, labels = [], [], []
+    nodes, children, labels, records = [], [], [], []
     samples = 0
-    for n, c, l in gen:
+    for n, c, l, r in gen:
         nodes.append(n)
         children.append(c)
         labels.append(l)
+        records.append(r)
+
         samples += 1
         if samples >= batch_size:
-            yield _pad_batch(nodes, children, labels)
-            nodes, children, labels = [], [], []
+            yield _pad_batch(nodes, children, labels, records)
+            nodes, children, labels, records = [], [], [], []
             samples = 0
 
     if nodes:
-        yield _pad_batch(nodes, children, labels)
+        yield _pad_batch(nodes, children, labels, records)
 
 
-def _pad_batch(nodes, children, labels):
+def _pad_batch(nodes, children, labels, records):
     if not nodes:
-        return [], [], []
+        return [], [], [], []
+
     max_nodes = max([len(x) for x in nodes])
     max_children = max([len(x) for x in children])
     feature_len = len(nodes[0][0])
@@ -147,7 +152,7 @@ def _pad_batch(nodes, children, labels):
     # pad every child sample so every node has the same number of children
     children = [[c + [0] * (child_len - len(c)) for c in sample] for sample in children]
 
-    return nodes, children, labels
+    return nodes, children, labels, records
 
 
 def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, device, lr=1e-3, batch_size=8, epochs=1, checkpoint=1000, output_dir=None):
@@ -169,14 +174,16 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
         total_loss = 0.0
 
         # P-CORR
+        item_list = []
         y_pred_list = []
         y_true_list = []
 
         for i, batch in enumerate(batch_samples(
-            gen_samples(train_trees[0], train_trees[1], embeddings, embed_lookup),
+            gen_samples(train_trees, embeddings, embed_lookup),
             batch_size
         )):
-            nodes, children, batch_labels = batch
+            nodes, children, batch_labels, batch_records = batch
+
             nodes = torch.from_numpy(np.array(nodes)).to(device)
             children = torch.LongTensor(children).to(device)
             batch_labels = y_scaler.transform(batch_labels)
@@ -190,6 +197,8 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
 
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
+
+            item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
             y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
             y_true_list += y_true if isinstance(y_true, list) else [y_true]
 
@@ -214,29 +223,30 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
         y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
 
         p_corr = pearson_corr(y_pred_list, y_true_list)
-        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}\n'
+        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
         logger.info(train_msg)
 
         if output_dir:
             with open(os.path.join(output_dir, 'train_pred.txt'), "w", encoding="utf-8") as f:
-                f.write(f"TRUE\tPRED\n")
-                for i, j in zip(y_true_list.tolist(), y_pred_list.tolist()):
-                    f.write(f"{i}\t{j}\n")
+                f.write(f"FILE\tTRUE\tPRED\n")
+                for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
+                    f.write(f"{k}\t{i}\t{j}\n")
 
     total_samples = len(test_trees)
     total_loss = 0.0
 
     # P-CORR
+    item_list = []
     y_pred_list = []
     y_true_list = []
 
     model.eval()
     with torch.no_grad():
         for i, batch in enumerate(batch_samples(
-            gen_samples(test_trees[0], test_trees[1], embeddings, embed_lookup),
+            gen_samples(test_trees, embeddings, embed_lookup),
             batch_size
         )):
-            nodes, children, batch_labels = batch
+            nodes, children, batch_labels, batch_records = batch
             nodes = torch.from_numpy(np.array(nodes)).to(device)
             children = torch.LongTensor(children).to(device)
             batch_labels = y_scaler.transform(batch_labels)
@@ -249,6 +259,8 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
             # y_true_list.append(batch_labels.item())
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
+
+            item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
             y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
             y_true_list += y_true if isinstance(y_true, list) else [y_true]
 
@@ -271,8 +283,8 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
             f.write(f" EVAL: {eval_msg}")
 
         with open(os.path.join(output_dir, 'eval_pred.txt'), "w", encoding="utf-8") as f:
-            f.write(f"TRUE\tPRED\n")
-            for i, j in zip(y_true_list.tolist(), y_pred_list.tolist()):
-                f.write(f"{i}\t{j}\n")
+            f.write(f"FILE\tTRUE\tPRED\n")
+            for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
+                f.write(f"{k}\t{i}\t{j}\n")
 
     return model

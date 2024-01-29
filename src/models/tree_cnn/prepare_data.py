@@ -149,7 +149,8 @@ def prepare_nodes(data, per_node=-1, limit=-1):
 def prepare_trees(data, minsize=-1, maxsize=-1):
     samples = []
 
-    for root in data:
+    for row in data:
+        root = row["tree"]
         sample, size = _traverse_tree(root)
         if minsize > 0 and maxsize > 0:
             if size > maxsize or size < minsize:
@@ -160,7 +161,8 @@ def prepare_trees(data, minsize=-1, maxsize=-1):
         elif not minsize > 0 and maxsize > 0:
             if size > maxsize:
                 continue
-
-        samples.append(sample)
+        
+        row["_tree"] = sample
+        samples.append(row)
 
     return samples

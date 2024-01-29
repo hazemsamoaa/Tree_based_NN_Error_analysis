@@ -12,6 +12,9 @@ from models.code2vec.config import Config as Code2vecConfig
 from models.code2vec.net import Code2vecNet
 from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
 from models.code2vec.trainer import trainer as code2vec_trainer
+from models.tbcc.prepare_data import prepared_data as tbcc_prepared_data
+from models.tbcc.trainer import trainer as tbcc_trainer
+from models.tbcc.transformer import TransformerModel
 from models.tree_cnn.embedding import TreeCNNEmbedding
 from models.tree_cnn.prepare_data import prepare_nodes as tree_cnn_prepare_nodes
 from models.tree_cnn.prepare_data import prepare_trees as tree_cnn_prepare_trees
@@ -22,7 +25,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
 
-from utils import AttrDict
+from utils import AttrDict, remove_comments
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,7 +52,7 @@ def main(args):
             row = row[0]
 
             with open(os.path.join(full_path), "r", encoding="utf-8") as f:
-                java_code = f.read()
+                java_code = remove_comments(f.read())
                 tree = parse_java_code_to_ast(java_code, logger)
 
             if tree:
@@ -69,33 +72,42 @@ def main(args):
     logger.info(f"Train size: {len(train)}, Test size: {len(test)}")
 
     for model in args.train_on:
-        if model not in cfg.models:
-            logger.error(f"unknown model for {model}")
-
-        logger.info(f"training on {model} ...")
+        model = model.lower()
         if model == "tree_cnn":
-            # _output_dir = os.path.join(args.output_dir, f"tree_cnn_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            _output_dir = os.path.join(args.output_dir, f"tree_cnn")
+            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+            output_dir = os.path.join(args.output_dir, model)
             os.makedirs(_output_dir, exist_ok=True)
+
+            if output_dir:
+                torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
+                torch.save(train, os.path.join(output_dir, f'train.bin'))
+                torch.save(test, os.path.join(output_dir, f'test.bin'))
 
             logger.info(f"starting on {model} ...")
 
             nodes, node_samples = tree_cnn_prepare_nodes(data=list(map(lambda x: x["tree"], data)), per_node=-1, limit=-1)
             logger.info(f"We have {len(nodes)} nodes: {nodes.keys()}")
 
+            if output_dir:
+                torch.save(nodes, os.path.join(output_dir, f'nodes.bin'))
+                torch.save(node_samples, os.path.join(output_dir, f'node_samples.bin'))
+
             tree_cnn_embedding = TreeCNNEmbedding(num_classes=len(nodes.keys()), num_feats=100, hidden_size=100).to(device)
             node_map = {node: i for i, node in enumerate(nodes)}
             tree_cnn_embedding = tree_cnn_node_trainer(
                 node_samples, tree_cnn_embedding,
                 node_map=node_map,
-                device=device, lr=args.lr, batch_size=args.batch_size, epochs=args.repr_epochs, checkpoint=args.checkpoint, output_dir=_output_dir)
+                device=device, lr=args.lr, batch_size=args.batch_size, epochs=args.repr_epochs, checkpoint=args.checkpoint, output_dir=output_dir)
             embeddings = tree_cnn_embedding.embeddings.weight.data.cpu().numpy()
 
-            train_trees = tree_cnn_prepare_trees(data=list(map(lambda x: x["tree"], train)), minsize=-1, maxsize=-1)
-            train_trees = [train_trees, list(map(lambda x: x["y"], train))]
-            test_trees = tree_cnn_prepare_trees(data=list(map(lambda x: x["tree"], test)), minsize=-1, maxsize=-1)
-            test_trees = [test_trees, list(map(lambda x: x["y"], test))]
-            logger.info(f"Train size: {len(train_trees[0])}, Test size: {len(test_trees[0])}")
+            train_trees = tree_cnn_prepare_trees(data=train, minsize=-1, maxsize=-1)
+            test_trees = tree_cnn_prepare_trees(data=test, minsize=-1, maxsize=-1)
+
+            # train_trees = tree_cnn_prepare_trees(data=list(map(lambda x: x["tree"], train)), minsize=-1, maxsize=-1)
+            # train_trees = [train_trees, list(map(lambda x: x["y"], train))]
+            # test_trees = tree_cnn_prepare_trees(data=list(map(lambda x: x["tree"], test)), minsize=-1, maxsize=-1)
+            # test_trees = [test_trees, list(map(lambda x: x["y"], test))]
+            logger.info(f"Train size: {len(train_trees)}, Test size: {len(test_trees)}")
 
             model = TreeConvNet(feature_size=len(embeddings[0]), label_size=1, num_conv=1, output_size=100).to(device)
             tree_cnn_trainer(
@@ -106,12 +118,17 @@ def main(args):
                 embeddings=embeddings,
                 embed_lookup=node_map,
                 device=device,
-                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=_output_dir
+                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
             )
-        if model == "code2vec":
-            # _output_dir = os.path.join(args.output_dir, f"tree_cnn_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            _output_dir = os.path.join(args.output_dir, f"tree_cnn")
-            os.makedirs(_output_dir, exist_ok=True)
+        elif model == "code2vec":
+            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+            output_dir = os.path.join(args.output_dir, model)
+            os.makedirs(output_dir, exist_ok=True)
+
+            if output_dir:
+                torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
+                torch.save(train, os.path.join(output_dir, f'train.bin'))
+                torch.save(test, os.path.join(output_dir, f'test.bin'))
 
             logger.info(f"starting on extractign representation based on {model} ...")
             code2vec_config = Code2vecConfig(set_defaults=True, load_from_args=True, verify=True, args=args)
@@ -124,10 +141,38 @@ def main(args):
                 test=test_data,
                 y_scaler=y_scaler,
                 device=device,
-                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=_output_dir
+                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
             )
-        else:
-            logger.info(f"failed on {model} ...")
+        elif model == "transformer_tree":
+            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+            output_dir = os.path.join(args.output_dir, model)
+            os.makedirs(output_dir, exist_ok=True)
+
+            if output_dir:
+                torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
+                torch.save(train, os.path.join(output_dir, f'train.bin'))
+                torch.save(test, os.path.join(output_dir, f'test.bin'))
+
+            logger.info(f"starting on extractign representation based on {model} ...")
+            train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)
+            model = TransformerModel(
+                vocab_size=len(vocabulary) + 1, 
+                max_seq_length=args.max_seq_length, 
+                embed_dim=args.embed_dim, 
+                num_heads=args.num_heads, 
+                ff_dim=args.ff_dim, 
+                num_transformer_blocks=args.num_transformer_blocks, 
+                num_classes=1,
+            ).to(device)
+            tbcc_trainer(
+                model,
+                train=train_data,
+                test=test_data,
+                y_scaler=y_scaler,
+                device=device,
+                max_seq_length=args.max_seq_length,
+                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
+            )
 
 
 if __name__ == '__main__':
@@ -168,6 +213,13 @@ if __name__ == '__main__':
     parser.add_argument('--max_contexts', type=int, default=200)
     parser.add_argument('--max_path_length', type=int, default=8)
     parser.add_argument('--max_path_width', type=int, default=2)
+
+    # TransformerTree
+    parser.add_argument('--max_seq_length', type=int, default=1024*6)
+    parser.add_argument('--embed_dim', type=int, default=512)
+    parser.add_argument('--num_heads', type=int, default=8)
+    parser.add_argument('--ff_dim', type=int, default=512)
+    parser.add_argument('--num_transformer_blocks', type=int, default=1)
 
     # parser.add_argument('--save-model', action='store_true', default=False, help='For Saving the current Model')
     args = parser.parse_args()
