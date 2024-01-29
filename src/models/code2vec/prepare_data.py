@@ -1,10 +1,11 @@
 import logging
 
 import numpy as np
+from tqdm.auto import tqdm
+
 from extract_ast_paths import Extractor
 from models.code2vec.config import Config
 from models.code2vec.model_base import Code2VecModelBase
-from tqdm.auto import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -51,7 +52,6 @@ def prepare_data(data, config: Config, test=None):
             representation = model.predict(lines)
             row["representation"] = np.vstack([rp.code_vector for rp in representation])
             data_with_repr.append(row)
-        
 
     if test and isinstance(test, list):
         for row in tqdm(test, total=len(test)):

@@ -1,6 +1,6 @@
 pandas
 javalang
-pytorch-lightning
+# pytorch-lightning
 wandb
 tensorboard
 torch

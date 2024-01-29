@@ -161,7 +161,7 @@ def prepare_trees(data, minsize=-1, maxsize=-1):
         elif not minsize > 0 and maxsize > 0:
             if size > maxsize:
                 continue
-        
+
         row["_tree"] = sample
         samples.append(row)
 

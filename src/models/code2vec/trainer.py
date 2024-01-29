@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 from metrics import pearson_corr_v2 as pearson_corr
-from models.code2vec.net import Code2vecNet
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,7 +21,7 @@ def batch_samples(data, batch_size):
         representations.append(x["representation"])
         labels.append(x["y"])
         records.append(x)
-        
+
         samples += 1
         if samples >= batch_size:
             yield _pad_batch(representations, labels, records)
@@ -43,7 +43,6 @@ def _pad_batch(representations, labels, records):
     labels = np.array(labels)
 
     return np.concatenate(padded_representations, axis=0), labels, records
-
 
 
 def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=1, checkpoint=1000, output_dir=None):
@@ -80,7 +79,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
 
             # Forward pass
             logits = model(batch_code_vectors)
-            
+
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
 
@@ -137,7 +136,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
 
             # Forward pass
             logits = model(batch_code_vectors)
-            
+
             # y_pred_list.append(logits.item())
             # y_true_list.append(batch_labels.item())
             y_pred = logits.cpu().detach().flatten().numpy().tolist()

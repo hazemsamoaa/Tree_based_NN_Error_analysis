@@ -1,18 +1,8 @@
-import argparse
-import os
-import re
 import sys
 
-import javalang
-import numpy as np
-import pandas as pd
-from models.tbcc.tree import trans_to_sequences
-from pycparser import c_parser
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
 
-from utils import read_csv, write_pickle
+from models.tbcc.tree import trans_to_sequences
 
 sys.setrecursionlimit(1000000)
 
@@ -29,8 +19,8 @@ def prepared_data(records, max_seq_length=510, test_records=None):
         q2n = []
 
         sequences = trans_to_sequences(row["tree"])
-        sequences = sequences[:max_seq_length]                
-        
+        sequences = sequences[:max_seq_length]
+
         tokens_for_sents = ['CLS'] + sequences + ['SEP']
         for token in tokens_for_sents:
             if token not in vocabulary:
@@ -45,14 +35,13 @@ def prepared_data(records, max_seq_length=510, test_records=None):
         row["tokens_for_sents"] = tokens_for_sents
         data.append(row)
 
-    
     if test_records and isinstance(test_records, list):
         for row in tqdm(test_records, total=len(data)):
             q2n = []
 
             sequences = trans_to_sequences(row["tree"])
-            sequences = sequences[:max_seq_length]                
-            
+            sequences = sequences[:max_seq_length]
+
             tokens_for_sents = ['CLS'] + sequences + ['SEP']
             for token in tokens_for_sents:
                 if token not in vocabulary:

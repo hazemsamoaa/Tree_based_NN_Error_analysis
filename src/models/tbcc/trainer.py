@@ -1,23 +1,20 @@
-import argparse
 import logging
 import os
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from metrics import pearson_corr_v2 as pearson_corr
-from models.tbcc.transformer import TransformerModel
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
-from utils import read_pickle
+from metrics import pearson_corr_v2 as pearson_corr
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
 
 class TBCCDataset(Dataset):
     def __init__(self, data, scaler):
@@ -112,7 +109,7 @@ def trainer(
             item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
             y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
             y_true_list += y_true if isinstance(y_true, list) else [y_true]
-            
+
             # Compute loss
             loss = criterion(logits, batch_labels)
             total_loss += loss.item()
@@ -128,7 +125,6 @@ def trainer(
                 logger.info(f'Epoch [{epoch + 1}/{epochs}], Step [{step_count}], Loss: {total_loss / (i + 1):.4f}')
                 # torch.save(net.state_dict(), f'checkpoint_step_{step_count}.pth')
 
-        
         # Log per-epoch statistics
         y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
         y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
@@ -142,7 +138,6 @@ def trainer(
                 f.write(f"FILE\tTRUE\tPRED\n")
                 for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
                     f.write(f"{k}\t{i}\t{j}\n")
-
 
     total_samples = len(test_dataset)
     total_loss = 0.0
@@ -166,11 +161,11 @@ def trainer(
             item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
             y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
             y_true_list += y_true if isinstance(y_true, list) else [y_true]
-            
+
             # Compute loss
             loss = criterion(logits, batch_labels)
             total_loss += loss.item()
-        
+
         # Log per-epoch statistics
         y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
         y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
@@ -178,7 +173,6 @@ def trainer(
         p_corr = pearson_corr(y_pred_list, y_true_list)
         eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
         logger.info(eval_msg)
-
 
     if output_dir:
         torch.save(model.state_dict(), os.path.join(output_dir, f'model.pth'))
