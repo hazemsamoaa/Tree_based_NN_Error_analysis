@@ -12,7 +12,7 @@ class Code2vecNet(nn.Module):
 
         # Latent layers
         self.h1 = nn.Linear(feature_size, feature_size)
-        # self.h2 = nn.Linear(feature_size, feature_size)
+        self.h2 = nn.Linear(feature_size, feature_size)
 
         # Hidden layer
         self.output = nn.Linear(feature_size, label_size)
@@ -23,6 +23,6 @@ class Code2vecNet(nn.Module):
     def forward(self, x):
         x = self.h1(x)
         x = self.pooling_layer(x)
-        # x = self.h2(x)
+        x = self.h2(x)
         output = self.output(x)
         return output

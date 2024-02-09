@@ -42,6 +42,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def main(args):
     java_files = find_java_files(args.data_dir)
     data_info = pd.read_csv(os.path.join(args.data_dir, "data_info.csv"))
+    data_info["Test case"] = data_info["Test case"].apply(lambda x: x.split("/")[-1])
     data = []
 
     for java_file in tqdm(java_files):
@@ -73,18 +74,12 @@ def main(args):
 
     for model in args.train_on:
         model = model.lower()
-        if model == "tree_cnn":
+        if model == "tree_cnn_emb":
             # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
             output_dir = os.path.join(args.output_dir, model)
             os.makedirs(output_dir, exist_ok=True)
 
-            if output_dir:
-                torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
-                torch.save(train, os.path.join(output_dir, f'train.bin'))
-                torch.save(test, os.path.join(output_dir, f'test.bin'))
-
             logger.info(f"starting on {model} ...")
-
             nodes, node_samples = tree_cnn_prepare_nodes(data=list(map(lambda x: x["tree"], data)), per_node=args.per_node, limit=args.limit)
             logger.info(f"We have {len(nodes)} nodes: {nodes.keys()}")
 
@@ -98,7 +93,21 @@ def main(args):
                 node_samples, tree_cnn_embedding,
                 node_map=node_map,
                 device=device, lr=args.lr, batch_size=args.batch_size, epochs=args.repr_epochs, checkpoint=args.checkpoint, output_dir=output_dir)
-            embeddings = tree_cnn_embedding.embeddings.weight.data.cpu().numpy()
+
+        if model == "tree_cnn":
+            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+            output_dir = os.path.join(args.output_dir, model)
+            os.makedirs(output_dir, exist_ok=True)
+
+            if output_dir:
+                torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
+                torch.save(train, os.path.join(output_dir, f'train.bin'))
+                torch.save(test, os.path.join(output_dir, f'test.bin'))
+
+            logger.info(f"starting on {model} ...")
+
+            node_map = torch.load(args.node_map_path)
+            embeddings = torch.load(args.embeddings_path)
 
             train_trees = tree_cnn_prepare_trees(data=train, minsize=args.minsize, maxsize=args.maxsize)
             test_trees = tree_cnn_prepare_trees(data=test, minsize=args.minsize, maxsize=args.maxsize)
@@ -109,7 +118,7 @@ def main(args):
             # test_trees = [test_trees, list(map(lambda x: x["y"], test))]
             logger.info(f"Train size: {len(train_trees)}, Test size: {len(test_trees)}")
 
-            model = TreeConvNet(feature_size=len(embeddings[0]), label_size=1, num_conv=1, output_size=100).to(device)
+            model = TreeConvNet(feature_size=len(embeddings[0]), label_size=1, num_conv=args.num_conv, output_size=args.conv_hidden_size).to(device)
             tree_cnn_trainer(
                 model,
                 train_trees=train_trees,
@@ -133,6 +142,7 @@ def main(args):
             logger.info(f"starting on extractign representation based on {model} ...")
             code2vec_config = Code2vecConfig(set_defaults=True, load_from_args=True, verify=True, args=args)
             train_data, test_data = code2vec_prepare_data(train, code2vec_config, test=test)
+            logger.info(f"Train size: {len(train_data)}, Test size: {len(test_data)}")
 
             model = Code2vecNet(feature_size=train_data[0]["representation"].shape[1]).to(device)
             code2vec_trainer(
@@ -192,12 +202,16 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', type=int, default=-1, help='number of checkpoint to log (default: -1)')
 
     # TreeCNN
+    parser.add_argument('--node_map_path', type=str, default="", help='node_map file path')
+    parser.add_argument('--embeddings_path', type=str, default="", help='embeddings file path')
     parser.add_argument('--minsize', type=int, default=-1, help='Minimum size for tree.')
     parser.add_argument('--maxsize', type=int, default=-1, help='Maximum size for tree.')
     parser.add_argument('--limit', type=int, default=-1, help='Limit the number of samples. Set to -1 for no limit.')
     parser.add_argument('--per_node', type=int, default=-1, help='Limit samples per node. Set to -1 for no limit.')
     parser.add_argument('--num_feats', type=int, default=100, help='')
     parser.add_argument('--hidden_size', type=int, default=100, help='')
+    parser.add_argument('--num_conv', type=int, default=1, help='')
+    parser.add_argument('--conv_hidden_size', type=int, default=100, help='')
 
     # Code2Vec
     parser.add_argument("-d", "--data", dest="data_path", help="path to preprocessed dataset", required=False)

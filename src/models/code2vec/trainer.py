@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
-from metrics import pearson_corr_v2 as pearson_corr
+# from metrics import pearson_corr_v2 as pearson_corr
+from metrics import report_metrics
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -27,6 +27,9 @@ def batch_samples(data, batch_size):
             yield _pad_batch(representations, labels, records)
             representations, labels, records = [], [], []
             samples = 0
+
+    if samples > 0:  # This means there are leftovers
+        yield _pad_batch(representations, labels, records)
 
 
 def _pad_batch(representations, labels, records):
@@ -71,7 +74,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
             batch_code_vectors, batch_labels, batch_records = batch
 
             batch_code_vectors = torch.from_numpy(batch_code_vectors).float().to(device)
-            batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1))
+            batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1)) if y_scaler else batch_labels
             batch_labels = torch.tensor(batch_labels).float().to(device)
 
             # Zero the parameter gradients
@@ -104,11 +107,19 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
                 # torch.save(net.state_dict(), f'checkpoint_step_{step_count}.pth')
 
         # Log per-epoch statistics
-        y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-        y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+        if y_scaler:
+            y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+            y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+        else:
+            y_pred_list = torch.tensor(y_pred_list).squeeze()
+            y_true_list = torch.tensor(y_true_list).squeeze()
 
-        p_corr = pearson_corr(y_pred_list, y_true_list)
-        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+        # p_corr = pearson_corr(y_pred_list, y_true_list)
+        # train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+        # logger.info(train_msg)
+        
+        metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f} MSE: {metrics["mse"]:.4f} MAE: {metrics["mae"]:.4f} P-CORR: {metrics["pcorr"]:.4f}'
         logger.info(train_msg)
 
         if output_dir:
@@ -125,43 +136,53 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
     y_pred_list = []
     y_true_list = []
 
-    model.eval()
-    with torch.no_grad():
-        for i, batch in enumerate(batch_samples(test, batch_size=batch_size)):
-            batch_code_vectors, batch_labels, batch_records = batch
+    if total_samples > 0:
+        model.eval()
+        with torch.no_grad():
+            for i, batch in enumerate(batch_samples(test, batch_size=batch_size)):
+                batch_code_vectors, batch_labels, batch_records = batch
 
-            batch_code_vectors = torch.from_numpy(batch_code_vectors).float().to(device)
-            batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1))
-            batch_labels = torch.tensor(batch_labels).float().to(device)
+                batch_code_vectors = torch.from_numpy(batch_code_vectors).float().to(device)
+                batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1)) if y_scaler else batch_labels
+                batch_labels = torch.tensor(batch_labels).float().to(device)
 
-            # Forward pass
-            logits = model(batch_code_vectors)
+                # Forward pass
+                logits = model(batch_code_vectors)
 
-            # y_pred_list.append(logits.item())
-            # y_true_list.append(batch_labels.item())
-            y_pred = logits.cpu().detach().flatten().numpy().tolist()
-            y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
+                # y_pred_list.append(logits.item())
+                # y_true_list.append(batch_labels.item())
+                y_pred = logits.cpu().detach().flatten().numpy().tolist()
+                y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
 
-            item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
-            y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
-            y_true_list += y_true if isinstance(y_true, list) else [y_true]
 
-            # Compute loss
-            loss = criterion(logits, batch_labels)
-            total_loss += loss.item()
+                item_list += [r["name"] for r in batch_records] if isinstance(batch_records, list) else [batch_records["name"]]
+                y_pred_list += y_pred if isinstance(y_pred, list) else [y_pred]
+                y_true_list += y_true if isinstance(y_true, list) else [y_true]
 
-        # Log per-epoch statistics
-        y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-        y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+                # Compute loss
+                loss = criterion(logits, batch_labels)
+                total_loss += loss.item()
 
-        p_corr = pearson_corr(y_pred_list, y_true_list)
-        eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
-        logger.info(eval_msg)
+            # Log per-epoch statistics
+            if y_scaler:
+                y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+                y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            else:
+                y_pred_list = torch.tensor(y_pred_list).squeeze()
+                y_true_list = torch.tensor(y_true_list).squeeze()
+
+            # p_corr = pearson_corr(y_pred_list, y_true_list)
+            # eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+            # logger.info(eval_msg)
+
+            metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+            eval_msg = f'Loss: {total_loss / total_samples:.4f} MSE: {metrics["mse"]:.4f} MAE: {metrics["mae"]:.4f} P-CORR: {metrics["pcorr"]:.4f}'
+            logger.info(eval_msg)
 
     if output_dir:
         torch.save(model.state_dict(), os.path.join(output_dir, f'model.pth'))
         with open(os.path.join(output_dir, 'output.txt'), "w", encoding="utf-8") as f:
-            f.write(f"TRAIN: {train_msg}")
+            f.write(f"TRAIN: {train_msg}\n")
             f.write(f" EVAL: {eval_msg}")
 
         with open(os.path.join(output_dir, 'eval_pred.txt'), "w", encoding="utf-8") as f:

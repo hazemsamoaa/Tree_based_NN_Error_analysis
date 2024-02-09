@@ -36,6 +36,7 @@ source /mimer/NOBACKUP/groups/snic2022-22-883/APP/my_python/venv/bin/activate
 which python
 echo "IT IS STARTING ... "
 
+# 42, 101, 1, 
 python src/train.py \
     --data_dir $DATA_DIR \
     --seed 42 \

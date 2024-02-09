@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+# from metrics import pearson_corr_v2 as pearson_corr
+from metrics import report_metrics
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
-
-from metrics import pearson_corr_v2 as pearson_corr
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,9 +25,11 @@ class TBCCDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
+        y = self.scaler.transform([[self.data[idx]["y"]]]) if self.scaler else [[y]]
+        
         return {
             "x": torch.tensor(self.data[idx]["q2n"]).long(),
-            "y": torch.tensor(self.scaler.transform([[self.data[idx]["y"]]])).float()[0],
+            "y": torch.tensor(y).float()[0],
             "row": self.data[idx]
         }
 
@@ -126,11 +128,18 @@ def trainer(
                 # torch.save(net.state_dict(), f'checkpoint_step_{step_count}.pth')
 
         # Log per-epoch statistics
-        y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-        y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+        if y_scaler:
+            y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+            y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+        else:
+            y_pred_list = torch.tensor(y_pred_list).squeeze()
+            y_true_list = torch.tensor(y_true_list).squeeze()
 
-        p_corr = pearson_corr(y_pred_list, y_true_list)
-        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+        # p_corr = pearson_corr(y_pred_list, y_true_list)
+        # train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+        # logger.info(train_msg)
+        metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f} MSE: {metrics["mse"]:.4f} MAE: {metrics["mae"]:.4f} P-CORR: {metrics["pcorr"]:.4f}'
         logger.info(train_msg)
 
         if output_dir:
@@ -167,17 +176,25 @@ def trainer(
             total_loss += loss.item()
 
         # Log per-epoch statistics
-        y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-        y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+        if y_scaler:
+            y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+            y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+        else:
+            y_pred_list = torch.tensor(y_pred_list).squeeze()
+            y_true_list = torch.tensor(y_true_list).squeeze()
 
-        p_corr = pearson_corr(y_pred_list, y_true_list)
-        eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+        # p_corr = pearson_corr(y_pred_list, y_true_list)
+        # eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
+        # logger.info(eval_msg)
+
+        metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+        eval_msg = f'Loss: {total_loss / total_samples:.4f} MSE: {metrics["mse"]:.4f} MAE: {metrics["mae"]:.4f} P-CORR: {metrics["pcorr"]:.4f}'
         logger.info(eval_msg)
 
     if output_dir:
         torch.save(model.state_dict(), os.path.join(output_dir, f'model.pth'))
         with open(os.path.join(output_dir, 'output.txt'), "w", encoding="utf-8") as f:
-            f.write(f"TRAIN: {train_msg}")
+            f.write(f"TRAIN: {train_msg}\n")
             f.write(f" EVAL: {eval_msg}")
 
         with open(os.path.join(output_dir, 'eval_pred.txt'), "w", encoding="utf-8") as f:
