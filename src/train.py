@@ -211,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default="", help='provide output directory')
 
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')
-    parser.add_argument('--batch_size', type=int, default=8, help='input batch size for training (default: 8)')
+    parser.add_argument('--batch_size', type=int, default=4, help='input batch size for training (default: 8)')
     parser.add_argument('--checkpoint', type=int, default=-1, help='number of checkpoint to log (default: -1)')
 
     # TreeCNN
