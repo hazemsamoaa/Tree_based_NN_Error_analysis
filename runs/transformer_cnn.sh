@@ -42,8 +42,9 @@ python src/train.py \
     --epochs 10 \
     --test_size 0.2 \
     --lr 1e-3 \
-    --batch_size 8 \
+    --batch_size 4 \
     --train_on transformer_tree \
     --output_dir $OUTPUT_DIR \
-    --max_seq_length 6144 \
-    --num_transformer_blocks 1
+    --max_seq_length 61440 \
+    --num_transformer_blocks 1 \
+    --do_log

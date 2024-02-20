@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
-class Code2vecNetFF(nn.Module):
+class Code2vecNet(nn.Module):
     def __init__(self, feature_size=384, label_size=1):
         super().__init__()
 
@@ -22,13 +22,14 @@ class Code2vecNetFF(nn.Module):
         return torch.mean(x, dim=1)
 
     def forward(self, x):
-        x = self.h1(x)
+        # x: batch_size x number of path of ast in our list x embedding of code2vec
+        x = self.h1(x) 
         x = self.pooling_layer(x)
         x = self.h2(x)
         output = self.output(x)
         return output
 
-class Code2vecNet(nn.Module):
+class Code2vecNetV2(nn.Module):
     def __init__(self, feature_size=384, label_size=1, out_channels=128, kernel_size=3, padding=1, stride=1, pool_kernel_size=2, pool_stride=2):
         super().__init__()
 

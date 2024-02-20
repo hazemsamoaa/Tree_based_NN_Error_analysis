@@ -221,8 +221,10 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
 
         # Log per-epoch statistics
         if y_scaler:
-            y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-            y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            # y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+            # y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            y_pred_list = torch.tensor(y_pred_list).squeeze()
+            y_true_list = torch.tensor(y_true_list).squeeze()
         else:
             y_pred_list = torch.tensor(y_pred_list).squeeze()
             y_true_list = torch.tensor(y_true_list).squeeze()
@@ -279,8 +281,10 @@ def trainer(model, train_trees, test_trees, y_scaler, embeddings, embed_lookup, 
 
         # Log per-epoch statistics
         if y_scaler:
-            y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-            y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            # y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+            # y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            y_pred_list = torch.tensor(y_pred_list).squeeze()
+            y_true_list = torch.tensor(y_true_list).squeeze()
         else:
             y_pred_list = torch.tensor(y_pred_list).squeeze()
             y_true_list = torch.tensor(y_true_list).squeeze()

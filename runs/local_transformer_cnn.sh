@@ -31,4 +31,5 @@ python src/train.py \
     --train_on transformer_tree \
     --output_dir $OUTPUT_DIR \
     --max_seq_length 6144 \
-    --num_transformer_blocks 1
+    --num_transformer_blocks 1 \
+    --do_log

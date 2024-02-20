@@ -78,7 +78,7 @@ def main(args):
     logger.info(f"Found {len(data)} for this experiment out of {len(java_files)}!")
     train, test = train_test_split(data, test_size=args.test_size, random_state=args.seed, stratify=list(map(lambda x: x["category"], data)))
     
-    y_scaler = MinMaxScaler()
+    y_scaler = MinMaxScaler(feature_range=(0, 1))
     # y_scaler = StandardScaler()
     y_scaler.fit(list(map(lambda x: [x["y"]], train)))
 
@@ -176,7 +176,8 @@ def main(args):
                 torch.save(test, os.path.join(output_dir, f'test.bin'))
 
             logger.info(f"starting on extractign representation based on {model} ...")
-            train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)            
+            train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)
+
             model = TransformerModel(
                 vocab_size=len(vocabulary) + 1, 
                 max_seq_length=args.max_seq_length, 

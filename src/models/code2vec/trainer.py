@@ -75,6 +75,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
 
             batch_code_vectors = torch.from_numpy(batch_code_vectors).float().to(device)
             batch_labels = y_scaler.transform(batch_labels.reshape(-1, 1)) if y_scaler else batch_labels
+        
             batch_labels = torch.tensor(batch_labels).float().to(device)
 
             # Zero the parameter gradients
@@ -108,8 +109,10 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
 
         # Log per-epoch statistics
         if y_scaler:
-            y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-            y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            # y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+            # y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+            y_pred_list = torch.tensor(y_pred_list).squeeze()
+            y_true_list = torch.tensor(y_true_list).squeeze()
         else:
             y_pred_list = torch.tensor(y_pred_list).squeeze()
             y_true_list = torch.tensor(y_true_list).squeeze()
@@ -165,8 +168,10 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
 
             # Log per-epoch statistics
             if y_scaler:
-                y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
-                y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+                # y_pred_list = torch.tensor(y_scaler.inverse_transform(np.array(y_pred_list).reshape(1, -1))).squeeze()
+                # y_true_list = torch.tensor(y_scaler.inverse_transform(np.array(y_true_list).reshape(1, -1))).squeeze()
+                y_pred_list = torch.tensor(y_pred_list).squeeze()
+                y_true_list = torch.tensor(y_true_list).squeeze()
             else:
                 y_pred_list = torch.tensor(y_pred_list).squeeze()
                 y_true_list = torch.tensor(y_true_list).squeeze()
