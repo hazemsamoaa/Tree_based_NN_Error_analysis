@@ -1,8 +1,10 @@
 import argparse
 import logging
+import math
 import os
 import random
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,7 +24,7 @@ from models.tree_cnn.tbcnn import TreeConvNet
 from models.tree_cnn.trainer import node_trainer as tree_cnn_node_trainer
 from models.tree_cnn.trainer import trainer as tree_cnn_trainer
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from tqdm import tqdm
 
 from utils import AttrDict, remove_comments
@@ -56,18 +58,28 @@ def main(args):
                 java_code = remove_comments(f.read())
                 tree = parse_java_code_to_ast(java_code, logger)
 
+            data_dir = Path(args.data_dir)
+            full_path = Path(full_path)
+            relative_path = full_path.relative_to(data_dir)
+
             if tree:
+                y = row["Runtime in ms"]
                 data.append({
                     "name": file_name,
-                    "path": full_path,
+                    "path": str(full_path),
+                    "relative_path": str(relative_path),
+                    "category": str(relative_path.parts[1]),
                     "type": file_type,
                     "tree": tree,
-                    "y": row["Runtime in ms"]
+                    "y": math.log(y) if args.do_log and y > 0 else y,
+                    "runtime": y
                 })
 
     logger.info(f"Found {len(data)} for this experiment out of {len(java_files)}!")
-    train, test = train_test_split(data, test_size=args.test_size, random_state=args.seed, stratify=list(map(lambda x: x["type"], data)))
+    train, test = train_test_split(data, test_size=args.test_size, random_state=args.seed, stratify=list(map(lambda x: x["category"], data)))
+    
     y_scaler = MinMaxScaler()
+    # y_scaler = StandardScaler()
     y_scaler.fit(list(map(lambda x: [x["y"]], train)))
 
     logger.info(f"Train size: {len(train)}, Test size: {len(test)}")
@@ -164,7 +176,7 @@ def main(args):
                 torch.save(test, os.path.join(output_dir, f'test.bin'))
 
             logger.info(f"starting on extractign representation based on {model} ...")
-            train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)
+            train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)            
             model = TransformerModel(
                 vocab_size=len(vocabulary) + 1, 
                 max_seq_length=args.max_seq_length, 
@@ -190,6 +202,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Training')
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')
     parser.add_argument('--data_dir', type=str, help='provide dataset directory', required=True)
+    parser.add_argument('--do_log', action='store_true', required=False, help="Compute the log of the target")
     parser.add_argument('--test_size', type=float, default=0.2, help="proportion of dataset to training and testing sets")
     parser.add_argument('--train_on', nargs='+', help='train on these models', required=True)
 

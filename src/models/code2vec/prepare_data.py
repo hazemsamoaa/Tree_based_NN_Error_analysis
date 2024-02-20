@@ -1,16 +1,14 @@
 import logging
 
 import numpy as np
-from tqdm.auto import tqdm
-
 from extract_ast_paths import Extractor
 from models.code2vec.config import Config
 from models.code2vec.model_base import Code2VecModelBase
+from tqdm.auto import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-SHOW_TOP_CONTEXTS = 10
 
 
 def load_model_dynamically(config: Config) -> Code2VecModelBase:
@@ -45,11 +43,11 @@ def prepare_data(data, config: Config, test=None):
             lines, hash_to_string_dict = path_extractor.extract_paths(row["path"])
         except Exception as e:
             print(e)
-            # raise
             continue
 
         if lines:
             representation = model.predict(lines)
+
             row["representation"] = np.vstack([rp.code_vector for rp in representation])
             data_with_repr.append(row)
 

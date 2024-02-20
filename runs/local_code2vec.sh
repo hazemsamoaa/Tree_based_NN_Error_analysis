@@ -33,4 +33,5 @@ python src/train.py \
     --predict \
     --export_code_vectors \
     --load ./data/models/java14_model/saved_model_iter8.release \
-    --jar_path ./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar
+    --jar_path ./scripts/JPredict/target/JavaExtractor-0.0.1-SNAPSHOT.jar \
+    --do_log

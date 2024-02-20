@@ -1,7 +1,7 @@
 import time
 from collections import Counter
 from functools import partial
-from typing import Dict, Optional, List, Iterable
+from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 import tensorflow as tf
@@ -9,7 +9,7 @@ import tensorflow as tf
 from .common import common
 from .config import Config
 from .model_base import Code2VecModelBase, ModelEvaluationResults, ModelPredictionResults
-from .path_context_reader import PathContextReader, ModelInputTensorsFormer, ReaderInputTensors, EstimatorAction
+from .path_context_reader import EstimatorAction, ModelInputTensorsFormer, PathContextReader, ReaderInputTensors
 from .vocabularies import VocabType
 
 tf.compat.v1.disable_eager_execution()

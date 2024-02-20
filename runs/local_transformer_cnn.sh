@@ -13,7 +13,7 @@ export CUDA_LAUNCH_BLOCKING=1
 # git config --global user.email "hazim.samoaa@gmail.com"
 # git config --global credential.helper store
 
-OUTPUT_DIR=./checkpoints/
+OUTPUT_DIR=./checkpoints/oss_builds
 DATA_DIR=./data/data/OssBuilds/
 
 # source /mimer/NOBACKUP/groups/snic2022-22-883/APP/my_python/venv/bin/activate
@@ -26,7 +26,7 @@ python src/train.py \
     --seed 42 \
     --epochs 10 \
     --test_size 0.2 \
-    --lr 1e-4 \
+    --lr 1e-3 \
     --batch_size 4 \
     --train_on transformer_tree \
     --output_dir $OUTPUT_DIR \

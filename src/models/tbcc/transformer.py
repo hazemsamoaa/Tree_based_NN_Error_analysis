@@ -88,13 +88,15 @@ class TransformerModel(nn.Module):
         super(TransformerModel, self).__init__()
         self.embedding_layer = TokenAndPositionEmbedding(max_seq_length, vocab_size, embed_dim)
         self.transformer_blocks = nn.ModuleList([TransformerBlock(embed_dim, num_heads, ff_dim) for _ in range(num_transformer_blocks)])
+        
         self.output_layer = nn.Linear(embed_dim, num_classes)
 
     def forward(self, x):
         x = self.embedding_layer(x)
         for transformer_block in self.transformer_blocks:
             x = transformer_block(x)
+        
         # Assuming we're using the output of the first token (like BERT) for classification
-        x = x[:, 0, :]
-        x = self.output_layer(x)
-        return x
+        pooled_output = x[:, 0, :]
+        o = self.output_layer(pooled_output)
+        return o
