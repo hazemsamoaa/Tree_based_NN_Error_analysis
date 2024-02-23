@@ -3,17 +3,21 @@ import logging
 import math
 import os
 import random
-from datetime import datetime
 from pathlib import Path
-
+from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
+
 from data_utils import find_java_files, parse_java_code_to_ast
 from models.code2vec.config import Config as Code2vecConfig
 from models.code2vec.net import Code2vecNet
 from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
 from models.code2vec.trainer import trainer as code2vec_trainer
+from models.dou_transformer.prepare_data import prepared_data as dou_transformer_prepared_data
 from models.tbcc.prepare_data import prepared_data as tbcc_prepared_data
 from models.tbcc.trainer import trainer as tbcc_trainer
 from models.tbcc.transformer import TransformerModel
@@ -23,10 +27,6 @@ from models.tree_cnn.prepare_data import prepare_trees as tree_cnn_prepare_trees
 from models.tree_cnn.tbcnn import TreeConvNet
 from models.tree_cnn.trainer import node_trainer as tree_cnn_node_trainer
 from models.tree_cnn.trainer import trainer as tree_cnn_trainer
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from tqdm import tqdm
-
 from utils import AttrDict, remove_comments
 
 # Configure logging
@@ -40,6 +40,23 @@ cfg = AttrDict({
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+@dataclass
+class ModelConfig:
+    """
+    Transformer (model) configuration
+    """
+
+    d_model: int = 768  # dimension of the token embeddings (hideen size of the model)
+    n_layer: int = 1  # number of encoder/decoder layers
+    n_head: int = 8  # number of self-attention heads
+    d_ff: int = 2048  # dimension of the feedforward network
+    src_vocab_size: int = 32  # size of the source vocabulary (will be updated after loading dataset)
+    tgt_vocab_size: int = 32  # size of the target vocabulary (will be updated after loading dataset)
+    drop: float = 0.1  # dropout probability
+    max_seq_len: int = 512  # maximum sequence length (will be updated after loading dataset)
+    pad_token_id: int = 0  # padding token id (usually 0)
+    activation: str = "gelu"  # activation function
 
 def main(args):
     java_files = find_java_files(args.data_dir)
@@ -70,6 +87,7 @@ def main(args):
                     "relative_path": str(relative_path),
                     "category": str(relative_path.parts[1]),
                     "type": file_type,
+                    "code": java_code.strip(),
                     "tree": tree,
                     "y": math.log(y) if args.do_log and y > 0 else y,
                     "runtime": y
@@ -77,7 +95,7 @@ def main(args):
 
     logger.info(f"Found {len(data)} for this experiment out of {len(java_files)}!")
     train, test = train_test_split(data, test_size=args.test_size, random_state=args.seed, stratify=list(map(lambda x: x["category"], data)))
-    
+
     y_scaler = MinMaxScaler(feature_range=(0, 1))
     # y_scaler = StandardScaler()
     y_scaler.fit(list(map(lambda x: [x["y"]], train)))
@@ -179,12 +197,12 @@ def main(args):
             train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)
 
             model = TransformerModel(
-                vocab_size=len(vocabulary) + 1, 
-                max_seq_length=args.max_seq_length, 
-                embed_dim=args.embed_dim, 
-                num_heads=args.num_heads, 
-                ff_dim=args.ff_dim, 
-                num_transformer_blocks=args.num_transformer_blocks, 
+                vocab_size=len(vocabulary) + 1,
+                max_seq_length=args.max_seq_length,
+                embed_dim=args.embed_dim,
+                num_heads=args.num_heads,
+                ff_dim=args.ff_dim,
+                num_transformer_blocks=args.num_transformer_blocks,
                 num_classes=1,
             ).to(device)
             tbcc_trainer(
@@ -196,6 +214,22 @@ def main(args):
                 max_seq_length=args.max_seq_length,
                 lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
             )
+        elif model == "dou_transformer":
+            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+            output_dir = os.path.join(args.output_dir, model)
+            os.makedirs(output_dir, exist_ok=True)
+
+            if output_dir:
+                torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
+                torch.save(train, os.path.join(output_dir, f'train.bin'))
+                torch.save(test, os.path.join(output_dir, f'test.bin'))
+
+            logger.info(f"starting on extractign representation based on {model} ...")
+            train_data, test_data, tokenizer = dou_transformer_prepared_data(
+                train, max_seq_length=args.max_seq_length, test_records=test, model_name_or_path="google-bert/bert-base-cased"
+            )
+
+            print(train_data[0])
 
 
 if __name__ == '__main__':
@@ -251,7 +285,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_path_width', type=int, default=2)
 
     # TransformerTree
-    parser.add_argument('--max_seq_length', type=int, default=1024*6)
+    parser.add_argument('--max_seq_length', type=int, default=1024 * 6)
     parser.add_argument('--embed_dim', type=int, default=512)
     parser.add_argument('--num_heads', type=int, default=8)
     parser.add_argument('--ff_dim', type=int, default=512)

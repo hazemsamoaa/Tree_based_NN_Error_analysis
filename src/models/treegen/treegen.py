@@ -48,8 +48,6 @@ class NlEncoder(nn.Module):
         self.transformerBlocks = nn.ModuleList(
             [TransformerBlock(self.embedding_size, 8, self.feed_forward_hidden, 0.1) for _ in range(5)])
         self.token_embedding = Embedding(args.Nl_Vocsize, self.embedding_size)
-        '''self.transformerBlocksTree = nn.ModuleList(
-            [TransformerBlock(self.embedding_size, 8, self.feed_forward_hidden, 0.1) for _ in range(5)])'''
 
     def forward(self, input_nl, input_nlchar):
         nlmask = torch.gt(input_nl, 0)
