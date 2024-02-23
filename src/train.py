@@ -293,7 +293,6 @@ if __name__ == '__main__':
     parser.add_argument('--num_transformer_blocks', type=int, default=1)
 
     # TransformerTree
-    parser.add_argument('--max_seq_length', type=int, default=1024 * 6)
     parser.add_argument('--d_model', type=int, default=512)
     parser.add_argument('--n_head', type=int, default=8)
     parser.add_argument('--d_ff', type=int, default=2048)
