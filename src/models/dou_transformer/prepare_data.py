@@ -1,21 +1,20 @@
 import sys
 
+from models.tbcc.tree import trans_to_sequences
 from tqdm import tqdm
 from transformers import AutoTokenizer
-
-from models.tbcc.tree import trans_to_sequences
 
 sys.setrecursionlimit(1000000)
 
 
-def prepared_data(records, max_seq_length=510, test_records=None, model_name_or_path="google-bert/bert-base-cased"):
+def prepared_data(records, max_seq_length=1024, test_records=None, model_name_or_path="google-bert/bert-base-cased"):
     """
     Main function to read files and prepare the data.
     """
-    past_new_tokens = []
-    for row in tqdm(records + test_records):
-        past_new_tokens += trans_to_sequences(row["tree"])
-    past_new_tokens = list(set(past_new_tokens))
+    past_new_tokens = [
+        'ForStatement', 'WhileStatement', 'DoStatement', 'SwitchStatement', 'IfStatement',
+        'End', 'MethodDeclaration', 'ConstructorDeclaration', 'BlockStatement', 'block'
+    ]
 
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, max_length=max_seq_length)
     tokenizer.add_tokens(past_new_tokens)

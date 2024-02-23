@@ -4,20 +4,18 @@ import math
 import os
 import random
 from pathlib import Path
-from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from tqdm import tqdm
-
 from data_utils import find_java_files, parse_java_code_to_ast
 from models.code2vec.config import Config as Code2vecConfig
 from models.code2vec.net import Code2vecNet
 from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
 from models.code2vec.trainer import trainer as code2vec_trainer
+from models.dou_transformer.dou_transformer import DualTransformerWithCrossAttention
 from models.dou_transformer.prepare_data import prepared_data as dou_transformer_prepared_data
+from models.dou_transformer.trainer import trainer as dou_transformer_trainer
 from models.tbcc.prepare_data import prepared_data as tbcc_prepared_data
 from models.tbcc.trainer import trainer as tbcc_trainer
 from models.tbcc.transformer import TransformerModel
@@ -27,6 +25,10 @@ from models.tree_cnn.prepare_data import prepare_trees as tree_cnn_prepare_trees
 from models.tree_cnn.tbcnn import TreeConvNet
 from models.tree_cnn.trainer import node_trainer as tree_cnn_node_trainer
 from models.tree_cnn.trainer import trainer as tree_cnn_trainer
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
+
 from utils import AttrDict, remove_comments
 
 # Configure logging
@@ -40,23 +42,6 @@ cfg = AttrDict({
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-@dataclass
-class ModelConfig:
-    """
-    Transformer (model) configuration
-    """
-
-    d_model: int = 768  # dimension of the token embeddings (hideen size of the model)
-    n_layer: int = 1  # number of encoder/decoder layers
-    n_head: int = 8  # number of self-attention heads
-    d_ff: int = 2048  # dimension of the feedforward network
-    src_vocab_size: int = 32  # size of the source vocabulary (will be updated after loading dataset)
-    tgt_vocab_size: int = 32  # size of the target vocabulary (will be updated after loading dataset)
-    drop: float = 0.1  # dropout probability
-    max_seq_len: int = 512  # maximum sequence length (will be updated after loading dataset)
-    pad_token_id: int = 0  # padding token id (usually 0)
-    activation: str = "gelu"  # activation function
 
 def main(args):
     java_files = find_java_files(args.data_dir)
@@ -229,8 +214,24 @@ def main(args):
                 train, max_seq_length=args.max_seq_length, test_records=test, model_name_or_path="google-bert/bert-base-cased"
             )
 
-            print(train_data[0])
-
+            model = DualTransformerWithCrossAttention(
+                e_vocab_size=len(tokenizer), d_vocab_size=len(tokenizer), 
+                d_model=args.d_model, 
+                n_head=args.n_head, 
+                d_ff=args.d_ff, 
+                n_layer=args.n_layer, 
+                max_seq_len=args.max_seq_length, 
+                drop=args.drop,
+            ).to(device)
+            dou_transformer_trainer(
+                model,
+                train=train_data,
+                test=test_data,
+                y_scaler=y_scaler,
+                device=device,
+                max_seq_length=args.max_seq_length,
+                lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
+            )
 
 if __name__ == '__main__':
     # argument parser
@@ -290,6 +291,14 @@ if __name__ == '__main__':
     parser.add_argument('--num_heads', type=int, default=8)
     parser.add_argument('--ff_dim', type=int, default=512)
     parser.add_argument('--num_transformer_blocks', type=int, default=1)
+
+    # TransformerTree
+    parser.add_argument('--max_seq_length', type=int, default=1024 * 6)
+    parser.add_argument('--d_model', type=int, default=512)
+    parser.add_argument('--n_head', type=int, default=8)
+    parser.add_argument('--d_ff', type=int, default=2048)
+    parser.add_argument('--n_layer', type=int, default=6)
+    parser.add_argument('--drop', type=float, default=0.1)
 
     # parser.add_argument('--save-model', action='store_true', default=False, help='For Saving the current Model')
     args = parser.parse_args()

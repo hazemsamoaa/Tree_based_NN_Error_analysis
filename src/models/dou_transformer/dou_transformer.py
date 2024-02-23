@@ -21,7 +21,7 @@ class AttentionHead(nn.Module):
         dim_k = torch.tensor(k.size(-1), dtype=torch.float32)
         attn_scores = torch.bmm(q, k.transpose(1, 2)) / torch.sqrt(dim_k)
         if mask is not None:
-            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
+            attn_scores = attn_scores.masked_fill(mask.unsqueeze(1) == 0, float('-inf'))
 
         attn_weights = torch.softmax(attn_scores, axis=-1)
         output = torch.bmm(attn_weights, v)
@@ -53,7 +53,7 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
         assert d_model % n_head == 0, "d_model must be divisible by n_head"
 
-        self.heads = nn.ModuleList([AttentionHead(config) for _ in range(n_head)])
+        self.heads = nn.ModuleList([AttentionHead(d_model=d_model, n_head=n_head) for _ in range(n_head)])
         self.linear = nn.Linear(d_model, d_model)
 
     def forward(self, q, k, v, mask=None):
@@ -108,14 +108,14 @@ class EncoderLayer(nn.Module):
     Implements a single Encoder layer.
     """
 
-    def __init__(self, d_model=768, drop=0.1):
+    def __init__(self, d_model=768, n_head=8, d_ff=2048, drop=0.1):
         super().__init__()
 
         self.norm_1 = nn.LayerNorm(d_model)
-        self.masked_attn = MultiHeadAttention(config)
+        self.masked_attn = MultiHeadAttention(d_model=d_model, n_head=n_head)
 
         self.norm_2 = nn.LayerNorm(d_model)
-        self.feed_forward = PositionWiseFeedForward(d_model=d_model, max_seq_len=max_seq_len)
+        self.feed_forward = PositionWiseFeedForward(d_model=d_model, d_ff=d_ff, drop=drop)
 
         self.dropout = nn.Dropout(drop)
 
@@ -132,12 +132,12 @@ class Encoder(nn.Module):
     Implements the Encoder stack.
     """
 
-    def __init__(self, vocab_size, d_model=768, n_layer=1, max_seq_len=512, drop=0.1):
+    def __init__(self, vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1):
         super().__init__()
         self.d_model = d_model
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.pe = PositionalEncoding(d_model=d_model, max_seq_len=max_seq_len)
-        self.layers = nn.ModuleList([EncoderLayer(d_model=d_model, drop=drop) for _ in range(n_layer)])
+        self.layers = nn.ModuleList([EncoderLayer(d_model=d_model, n_head=n_head, d_ff=d_ff, drop=drop) for _ in range(n_layer)])
 
     def forward(self, x, mask=None):
         x = self.embedding(x) * math.sqrt(self.d_model)
@@ -155,16 +155,16 @@ class DecoderLayer(nn.Module):
         config (TransformerConfig): The configuration for the transformer model.
     """
 
-    def __init__(self, d_model=768, drop=0.1):
+    def __init__(self, d_model=768, n_head=8, d_ff=2048, drop=0.1):
         super().__init__()
         self.norm_1 = nn.LayerNorm(d_model)
-        self.masked_attn = MultiHeadAttention(config)
+        self.masked_attn = MultiHeadAttention(d_model=d_model, n_head=n_head)
 
         self.norm_2 = nn.LayerNorm(d_model)
-        self.cross_attn = MultiHeadAttention(config)
+        self.cross_attn = MultiHeadAttention(d_model=d_model, n_head=n_head)
 
         self.norm_3 = nn.LayerNorm(d_model)
-        self.feed_forward = PositionWiseFeedForward(config)
+        self.feed_forward = PositionWiseFeedForward(d_model=d_model, d_ff=d_ff, drop=drop)
 
         self.dropout = nn.Dropout(drop)
 
@@ -187,12 +187,12 @@ class Decoder(nn.Module):
         config (TransformerConfig): The configuration for the transformer model.
     """
 
-    def __init__(self, vocab_size, d_model=768, n_layer=1):
+    def __init__(self, vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1):
         super().__init__()
         self.d_model = d_model
         self.embedding = nn.Embedding(vocab_size, d_model)
-        self.pe = PositionalEncoding(config)
-        self.layers = nn.ModuleList([DecoderLayer(config) for _ in range(n_layer)])
+        self.pe = PositionalEncoding(d_model=d_model, max_seq_len=max_seq_len)
+        self.layers = nn.ModuleList([DecoderLayer(d_model=d_model, n_head=n_head, d_ff=d_ff, drop=drop) for _ in range(n_layer)])
 
     def forward(self, x, enc_output, src_mask=None, tgt_mask=None):
         x = self.embedding(x) * math.sqrt(self.d_model)
@@ -210,11 +210,11 @@ class DualTransformerWithCrossAttention(nn.Module):
         config (TransformerConfig): The configuration for the transformer model.
     """
 
-    def __init__(self, d_model=768, ):
+    def __init__(self, e_vocab_size, d_vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1):
         super().__init__()
 
-        self.encoder = Encoder(config)
-        self.decoder = Decoder(config)
+        self.encoder = Encoder(e_vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
+        self.decoder = Decoder(d_vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
         self.regression_head = nn.Sequential(
             nn.Linear(d_model, d_model),
             nn.ReLU(),
@@ -229,13 +229,18 @@ class DualTransformerWithCrossAttention(nn.Module):
         return outputs
 
 
-if __name__ == '__main__':
-    config = ModelConfig()
-    model = DualTransformerWithCrossAttention(config)
+# if __name__ == '__main__':
+#     e_vocab_size, d_vocab_size = 32, 32
+#     model = DualTransformerWithCrossAttention(
+#         e_vocab_size=32, d_vocab_size=32, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1
+#     )
 
-    nl_input_ids = torch.randint(0, src_vocab_size, (10, 32))
-    path_ast_input_ids = torch.randint(0, tgt_vocab_size, (10, 32))
-    labels = torch.randn((nl_input_ids.size(0), 1))
+#     code_input_ids = torch.randint(0, e_vocab_size, (10, 32))
+#     code_attention_mask = torch.ones_like(code_input_ids)
+#     past_input_ids = torch.randint(0, d_vocab_size, (10, 32))
+#     past_attention_mask = torch.ones_like(past_input_ids)
 
-    outputs = model(nl_input_ids, path_ast_input_ids, labels)
-    print(outputs.size())
+#     # labels = torch.randn((code_input_ids.size(0), 1))
+
+#     outputs = model(code_input_ids, past_input_ids, code_attention_mask=code_attention_mask, past_attention_mask=past_attention_mask)
+#     print(outputs)

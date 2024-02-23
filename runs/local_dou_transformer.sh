@@ -15,10 +15,14 @@ python src/train.py \
     --seed 42 \
     --epochs 10 \
     --test_size 0.2 \
-    --lr 1e-3 \
+    --lr 1e-4 \
     --batch_size 4 \
     --train_on dou_transformer \
     --output_dir $OUTPUT_DIR \
-    --max_seq_length 510 \
-    --num_transformer_blocks 1 \
+    --max_seq_length 2048 \
+    --d_model 768 \
+    --n_head 8 \
+    --d_ff 2048 \
+    --n_layer 6 \
+    --drop 0.1 \
     --do_log
