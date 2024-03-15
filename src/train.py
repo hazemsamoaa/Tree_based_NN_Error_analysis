@@ -91,7 +91,7 @@ def main(args):
         aggregated_java_files.extend(java_files)
         aggregated_data.extend(data)
     
-    data = aggregated_data[:10]
+    data = aggregated_data
     java_files = aggregated_java_files
     logger.info(f"Found {len(data)} trainingset for this experiment out of {len(java_files)}!")
 

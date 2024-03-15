@@ -7,8 +7,6 @@
 #SBATCH --error=logs/runner-%J.err.log
 #SBATCH --output=logs/runner-%J.out.log
 #SBATCH --gpus-per-node=A100:1
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=samoaa@chalmers.se
 
 export CUDA_LAUNCH_BLOCKING=1
 
