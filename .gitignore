@@ -106,6 +106,7 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv*
 ENV/
 env.bak/
 venv.bak/
@@ -145,3 +146,6 @@ notes/*
 !notes/README.md
 checkpoints/**/*.txt
 checkpoints/*
+
+logs/*
+!logs/.keep

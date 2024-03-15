@@ -16,7 +16,7 @@ def count_words_in_file(file_path):
         return len(words)
 
 
-def find_java_files(directory, word_count_threshold=512):
+def find_java_files(directory, word_count_threshold=350):
     """
     Walk through a directory and retrieve all .java files with their names and full paths.
 
@@ -37,7 +37,7 @@ def find_java_files(directory, word_count_threshold=512):
     return java_files
 
 
-def parse_java_code_to_ast(java_code, logger=None):
+def parse_java_code_to_ast(java_code, logger=None, jid=None):
     """
     Parses Java code into an AST and converts it to numerical format.
 
@@ -47,11 +47,11 @@ def parse_java_code_to_ast(java_code, logger=None):
     """
     try:
         tree = javalang.parse.parse(java_code)
-    except javalang.parser.JavaSyntaxError as e:
+    except Exception as e:
         if logger:
-            logger.info(f"Syntax error when parsing Java code: {e}")
+            logger.info(f"Syntax error when parsing Java code {jid}: {e}")
         else:
-            print(f"Syntax error when parsing Java code: {e}")
+            print(f"Syntax error when parsing Java code {jid}: {e}")
 
         tree = None
 

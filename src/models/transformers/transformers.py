@@ -202,6 +202,32 @@ class Decoder(nn.Module):
         return x
 
 
+
+class ASTTransformer(nn.Module):
+    """
+    Implements the Transformer architecture.
+
+    Args:
+        config (TransformerConfig): The configuration for the transformer model.
+    """
+
+    def __init__(self, vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1):
+        super().__init__()
+
+        self.encoder = Encoder(vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
+        self.regression_head = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.ReLU(),
+            nn.Linear(d_model, 1)
+        )
+
+    def forward(self, past_input_ids, past_attention_mask=None, **kwargs):
+        output = self.encoder(past_input_ids, mask=past_attention_mask)
+        pooled_output = output[:, 0, :]
+        outputs = self.regression_head(pooled_output)
+        return outputs
+
+
 class DualTransformerWithCrossAttention(nn.Module):
     """
     Implements the Transformer architecture.
@@ -210,34 +236,46 @@ class DualTransformerWithCrossAttention(nn.Module):
         config (TransformerConfig): The configuration for the transformer model.
     """
 
-    def __init__(self, e_vocab_size, d_vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1):
+    def __init__(self, nl_vocab_size, ast_vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1):
         super().__init__()
 
-        self.encoder = Encoder(e_vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
-        self.decoder = Decoder(d_vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
+        self.nl_encoder = Encoder(nl_vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
+        self.ast_encoder = Decoder(ast_vocab_size, d_model=d_model, n_head=n_head, d_ff=d_ff, n_layer=n_layer, max_seq_len=max_seq_len, drop=drop)
         self.regression_head = nn.Sequential(
             nn.Linear(d_model, d_model),
             nn.ReLU(),
             nn.Linear(d_model, 1)
         )
 
-    def forward(self, code_input_ids, past_input_ids, code_attention_mask=None, past_attention_mask=None):
-        enc_output = self.encoder(code_input_ids, mask=code_attention_mask)
-        dec_output = self.decoder(past_input_ids, enc_output, src_mask=code_attention_mask, tgt_mask=past_attention_mask)
-        pooled_output = dec_output[:, 0, :]
+    def forward(self, code_input_ids, past_input_ids, code_attention_mask=None, past_attention_mask=None, **kwargs):
+        nl_encoder_output = self.nl_encoder(code_input_ids, mask=code_attention_mask)
+        ast_encoder_output = self.ast_encoder(past_input_ids, nl_encoder_output, src_mask=code_attention_mask, tgt_mask=past_attention_mask)
+        pooled_output = ast_encoder_output[:, 0, :]
         outputs = self.regression_head(pooled_output)
         return outputs
 
 
 # if __name__ == '__main__':
-#     e_vocab_size, d_vocab_size = 32, 32
-#     model = DualTransformerWithCrossAttention(
-#         e_vocab_size=32, d_vocab_size=32, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1
+#     vocab_size = 32
+#     model = ASTTransformer(
+#         vocab_size=vocab_size, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1
 #     )
 
-#     code_input_ids = torch.randint(0, e_vocab_size, (10, 32))
+#     past_input_ids = torch.randint(0, vocab_size, (10, 32))
+#     past_attention_mask = torch.ones_like(past_input_ids)
+
+#     outputs = model(past_input_ids, past_attention_mask=past_attention_mask)
+#     print(outputs)
+
+#     print('===' * 10)
+#     nl_vocab_size, ast_vocab_size = 32, 32
+#     model = DualTransformerWithCrossAttention(
+#         nl_vocab_size=32, ast_vocab_size=32, d_model=768, n_head=8, d_ff=2048, n_layer=1, max_seq_len=512, drop=0.1
+#     )
+
+#     code_input_ids = torch.randint(0, nl_vocab_size, (10, 32))
 #     code_attention_mask = torch.ones_like(code_input_ids)
-#     past_input_ids = torch.randint(0, d_vocab_size, (10, 32))
+#     past_input_ids = torch.randint(0, ast_vocab_size, (10, 32))
 #     past_attention_mask = torch.ones_like(past_input_ids)
 
 #     # labels = torch.randn((code_input_ids.size(0), 1))

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -5,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 # from metrics import pearson_corr_v2 as pearson_corr
 from metrics import report_metrics
 
@@ -59,6 +61,7 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
     # Initialize step count
     total_samples = len(train)
     step_count = 0
+    metrics = {}
 
     # Training loop
     model.train()
@@ -121,12 +124,13 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
         # train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
         # logger.info(train_msg)
         
-        metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
-        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f} MSE: {metrics["mse"]:.4f} MAE: {metrics["mae"]:.4f} P-CORR: {metrics["pcorr"]:.4f}'
+        train_metric = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+        metrics.update({"train": train_metric})
+        train_msg = f'Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / total_samples:.4f} MSE: {train_metric["mse"]:.4f} MAE: {train_metric["mae"]:.4f} P-CORR: {train_metric["pcorr"]:.4f}'
         logger.info(train_msg)
 
         if output_dir:
-            with open(os.path.join(output_dir, 'train_pred.txt'), "w", encoding="utf-8") as f:
+            with open(os.path.join(output_dir, 'train_pred.csv'), "w", encoding="utf-8") as f:
                 f.write(f"FILE\tTRUE\tPRED\n")
                 for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
                     f.write(f"{k}\t{i}\t{j}\n")
@@ -180,17 +184,17 @@ def trainer(model, train, test, y_scaler, device, lr=1e-3, batch_size=8, epochs=
             # eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
             # logger.info(eval_msg)
 
-            metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
-            eval_msg = f'Loss: {total_loss / total_samples:.4f} MSE: {metrics["mse"]:.4f} MAE: {metrics["mae"]:.4f} P-CORR: {metrics["pcorr"]:.4f}'
+            eval_metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+            metrics.update({"eval": eval_metrics})
+            eval_msg = f'Loss: {total_loss / total_samples:.4f} MSE: {eval_metrics["mse"]:.4f} MAE: {eval_metrics["mae"]:.4f} P-CORR: {eval_metrics["pcorr"]:.4f}'
             logger.info(eval_msg)
 
     if output_dir:
         torch.save(model.state_dict(), os.path.join(output_dir, f'model.pth'))
-        with open(os.path.join(output_dir, 'output.txt'), "w", encoding="utf-8") as f:
-            f.write(f"TRAIN: {train_msg}\n")
-            f.write(f" EVAL: {eval_msg}")
+        with open(os.path.join(output_dir, 'output.json'), "w", encoding="utf-8") as fj:
+            json.dump(metrics, fj, indent=2)
 
-        with open(os.path.join(output_dir, 'eval_pred.txt'), "w", encoding="utf-8") as f:
+        with open(os.path.join(output_dir, 'eval_pred.csv'), "w", encoding="utf-8") as f:
             f.write(f"FILE\tTRUE\tPRED\n")
             for k, i, j in zip(item_list, y_true_list.tolist(), y_pred_list.tolist()):
                 f.write(f"{k}\t{i}\t{j}\n")

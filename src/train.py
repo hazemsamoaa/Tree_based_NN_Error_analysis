@@ -8,44 +8,41 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
+
 from data_utils import find_java_files, parse_java_code_to_ast
 from models.code2vec.config import Config as Code2vecConfig
 from models.code2vec.net import Code2vecNet
 from models.code2vec.prepare_data import prepare_data as code2vec_prepare_data
 from models.code2vec.trainer import trainer as code2vec_trainer
-from models.dou_transformer.dou_transformer import DualTransformerWithCrossAttention
-from models.dou_transformer.prepare_data import prepared_data as dou_transformer_prepared_data
-from models.dou_transformer.trainer import trainer as dou_transformer_trainer
 from models.tbcc.prepare_data import prepared_data as tbcc_prepared_data
 from models.tbcc.trainer import trainer as tbcc_trainer
 from models.tbcc.transformer import TransformerModel
+from models.transformers.prepare_data import prepared_data as transformer_prepared_data
+from models.transformers.trainer import trainer as transformer_trainer
+# from models.dou_transformer.dou_transformer import DualTransformerWithCrossAttention
+# from models.dou_transformer.prepare_data import prepared_data as dou_transformer_prepared_data
+# from models.dou_transformer.trainer import trainer as dou_transformer_trainer
+from models.transformers.transformers import ASTTransformer, DualTransformerWithCrossAttention
 from models.tree_cnn.embedding import TreeCNNEmbedding
 from models.tree_cnn.prepare_data import prepare_nodes as tree_cnn_prepare_nodes
 from models.tree_cnn.prepare_data import prepare_trees as tree_cnn_prepare_trees
 from models.tree_cnn.tbcnn import TreeConvNet
 from models.tree_cnn.trainer import node_trainer as tree_cnn_node_trainer
 from models.tree_cnn.trainer import trainer as tree_cnn_trainer
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from tqdm import tqdm
-
 from utils import AttrDict, remove_comments
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-cfg = AttrDict({
-    "n_samples_per_log": 3,
-    "models": ["tree_cnn", "code2vec", "transformer_tree", "tree_gen"],
-})
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def main(args):
-    java_files = find_java_files(args.data_dir)
-    data_info = pd.read_csv(os.path.join(args.data_dir, "data_info.csv"))
+def read_data(data_dir, do_log=True, data_info="data_info.csv"):
+    java_files = find_java_files(data_dir)
+    data_info = pd.read_csv(os.path.join(data_dir, data_info))
     data_info["Test case"] = data_info["Test case"].apply(lambda x: x.split("/")[-1])
     data = []
 
@@ -58,9 +55,9 @@ def main(args):
 
             with open(os.path.join(full_path), "r", encoding="utf-8") as f:
                 java_code = remove_comments(f.read())
-                tree = parse_java_code_to_ast(java_code, logger)
+                tree = parse_java_code_to_ast(java_code, logger, jid=full_path)
 
-            data_dir = Path(args.data_dir)
+            data_dir = Path(data_dir)
             full_path = Path(full_path)
             relative_path = full_path.relative_to(data_dir)
 
@@ -72,28 +69,55 @@ def main(args):
                     "relative_path": str(relative_path),
                     "category": str(relative_path.parts[1]),
                     "type": file_type,
+                    "category_type": f"{str(relative_path.parts[1])}-{file_type}",
                     "code": java_code.strip(),
                     "tree": tree,
-                    "y": math.log(y) if args.do_log and y > 0 else y,
+                    "y": math.log(y) if do_log and y > 0 else y,
                     "runtime": y
                 })
 
-    logger.info(f"Found {len(data)} for this experiment out of {len(java_files)}!")
-    train, test = train_test_split(data, test_size=args.test_size, random_state=args.seed, stratify=list(map(lambda x: x["category"], data)))
+    return java_files, data
+
+
+def main(args):
+    output_dir = args.output_dir
+
+
+    aggregated_data = []
+    aggregated_java_files = []
+
+    for train_data_dir in args.train_data_dir:
+        java_files, data = read_data(train_data_dir, do_log=args.do_log)
+        aggregated_java_files.extend(java_files)
+        aggregated_data.extend(data)
+    
+    data = aggregated_data[:10]
+    java_files = aggregated_java_files
+    logger.info(f"Found {len(data)} trainingset for this experiment out of {len(java_files)}!")
+
+
+    if not args.test_data_dir or not os.path.exists(args.test_data_dir):
+        train, test = train_test_split(data, test_size=args.test_size, random_state=args.seed, stratify=list(map(lambda x: x["category_type"], data)))
+        logger.info(f"Train {len(train)} Test {len(test)} for split test_size={args.test_size}")
+    else:
+        java_files, test = read_data(args.test_data_dir, do_log=args.do_log)
+        logger.info(f"Found {len(test)} testsets for this experiment out of {len(java_files)}")
+        logger.info(f"Train {len(train)} Test {len(test)}")
+        
+    
+    if args.train_size > 0.0:
+        _, train = train_test_split(train, test_size=args.train_size, random_state=args.seed, stratify=list(map(lambda x: x["category_type"], train)))
+        logger.info(f"{len(_) + len(train)} => Sample Training ({args.train_size * 100}%) {len(train)}")
 
     y_scaler = MinMaxScaler(feature_range=(0, 1))
     # y_scaler = StandardScaler()
     y_scaler.fit(list(map(lambda x: [x["y"]], train)))
 
-    logger.info(f"Train size: {len(train)}, Test size: {len(test)}")
+    # raise
 
     for model in args.train_on:
         model = model.lower()
         if model == "tree_cnn_emb":
-            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            output_dir = os.path.join(args.output_dir, model)
-            os.makedirs(output_dir, exist_ok=True)
-
             logger.info(f"starting on {model} ...")
             nodes, node_samples = tree_cnn_prepare_nodes(data=list(map(lambda x: x["tree"], data)), per_node=args.per_node, limit=args.limit)
             logger.info(f"We have {len(nodes)} nodes: {nodes.keys()}")
@@ -110,10 +134,6 @@ def main(args):
                 device=device, lr=args.lr, batch_size=args.batch_size, epochs=args.repr_epochs, checkpoint=args.checkpoint, output_dir=output_dir)
 
         if model == "tree_cnn":
-            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            output_dir = os.path.join(args.output_dir, model)
-            os.makedirs(output_dir, exist_ok=True)
-
             if output_dir:
                 torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
                 torch.save(train, os.path.join(output_dir, f'train.bin'))
@@ -145,10 +165,6 @@ def main(args):
                 lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
             )
         elif model == "code2vec":
-            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            output_dir = os.path.join(args.output_dir, model)
-            os.makedirs(output_dir, exist_ok=True)
-
             if output_dir:
                 torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
                 torch.save(train, os.path.join(output_dir, f'train.bin'))
@@ -168,29 +184,58 @@ def main(args):
                 device=device,
                 lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
             )
-        elif model == "transformer_tree":
-            # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            output_dir = os.path.join(args.output_dir, model)
-            os.makedirs(output_dir, exist_ok=True)
+        # elif model == "transformer_tree":
+        #     # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
+        #     output_dir = os.path.join(args.output_dir, model)
+        #     os.makedirs(output_dir, exist_ok=True)
 
+        #     if output_dir:
+        #         torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
+        #         torch.save(train, os.path.join(output_dir, f'train.bin'))
+        #         torch.save(test, os.path.join(output_dir, f'test.bin'))
+
+        #     logger.info(f"starting on extractign representation based on {model} ...")
+        #     train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)
+
+        #     model = TransformerModel(
+        #         vocab_size=len(vocabulary) + 1,
+        #         max_seq_length=args.max_seq_length,
+        #         embed_dim=args.embed_dim,
+        #         num_heads=args.num_heads,
+        #         ff_dim=args.ff_dim,
+        #         num_transformer_blocks=args.num_transformer_blocks,
+        #         num_classes=1,
+        #     ).to(device)
+        #     tbcc_trainer(
+        #         model,
+        #         train=train_data,
+        #         test=test_data,
+        #         y_scaler=y_scaler,
+        #         device=device,
+        #         max_seq_length=args.max_seq_length,
+        #         lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
+        #     )
+        elif model == "1_transformer":
             if output_dir:
                 torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
                 torch.save(train, os.path.join(output_dir, f'train.bin'))
                 torch.save(test, os.path.join(output_dir, f'test.bin'))
 
             logger.info(f"starting on extractign representation based on {model} ...")
-            train_data, test_data, vocabulary, inverse_vocabulary = tbcc_prepared_data(train, max_seq_length=args.max_seq_length, test_records=test)
+            train_data, test_data, tokenizer = transformer_prepared_data(
+                train, max_seq_length=args.max_seq_length, test_records=test, model_name_or_path="google-bert/bert-base-cased",
+            )
 
-            model = TransformerModel(
-                vocab_size=len(vocabulary) + 1,
-                max_seq_length=args.max_seq_length,
-                embed_dim=args.embed_dim,
-                num_heads=args.num_heads,
-                ff_dim=args.ff_dim,
-                num_transformer_blocks=args.num_transformer_blocks,
-                num_classes=1,
+            model = ASTTransformer(
+                vocab_size=len(tokenizer), 
+                d_model=args.d_model, 
+                n_head=args.n_head, 
+                d_ff=args.d_ff, 
+                n_layer=args.n_layer, 
+                max_seq_len=args.max_seq_length, 
+                drop=args.drop,
             ).to(device)
-            tbcc_trainer(
+            transformer_trainer(
                 model,
                 train=train_data,
                 test=test_data,
@@ -199,10 +244,10 @@ def main(args):
                 max_seq_length=args.max_seq_length,
                 lr=args.lr, batch_size=args.batch_size, epochs=args.epochs, checkpoint=args.checkpoint, output_dir=output_dir
             )
-        elif model == "dou_transformer":
+        elif model == "2_transformer":
             # _output_dir = os.path.join(args.output_dir, f"{model}_{datetime.now().strftime('%Y-%m-%dT%H_%M_%S')}")
-            output_dir = os.path.join(args.output_dir, model)
-            os.makedirs(output_dir, exist_ok=True)
+            # output_dir = os.path.join(args.output_dir, model)
+            # os.makedirs(output_dir, exist_ok=True)
 
             if output_dir:
                 torch.save(y_scaler, os.path.join(output_dir, f'y_scaler.bin'))
@@ -210,12 +255,12 @@ def main(args):
                 torch.save(test, os.path.join(output_dir, f'test.bin'))
 
             logger.info(f"starting on extractign representation based on {model} ...")
-            train_data, test_data, tokenizer = dou_transformer_prepared_data(
+            train_data, test_data, tokenizer = transformer_prepared_data(
                 train, max_seq_length=args.max_seq_length, test_records=test, model_name_or_path="google-bert/bert-base-cased"
             )
 
             model = DualTransformerWithCrossAttention(
-                e_vocab_size=len(tokenizer), d_vocab_size=len(tokenizer), 
+                nl_vocab_size=len(tokenizer), ast_vocab_size=len(tokenizer), 
                 d_model=args.d_model, 
                 n_head=args.n_head, 
                 d_ff=args.d_ff, 
@@ -223,7 +268,7 @@ def main(args):
                 max_seq_len=args.max_seq_length, 
                 drop=args.drop,
             ).to(device)
-            dou_transformer_trainer(
+            transformer_trainer(
                 model,
                 train=train_data,
                 test=test_data,
@@ -237,8 +282,11 @@ if __name__ == '__main__':
     # argument parser
     parser = argparse.ArgumentParser(description='PyTorch Training')
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')
-    parser.add_argument('--data_dir', type=str, help='provide dataset directory', required=True)
+    # parser.add_argument('--train_data_dir', type=str, help='provide dataset directory', required=True)
+    parser.add_argument('--train_data_dir', nargs='+', type=str, help='provide dataset directory/directories', required=True)
+    parser.add_argument('--test_data_dir', type=str, help='provide dataset directory', required=False)
     parser.add_argument('--do_log', action='store_true', required=False, help="Compute the log of the target")
+    parser.add_argument('--train_size', type=float, default=0.0, help="proportion of dataset to training and testing sets")
     parser.add_argument('--test_size', type=float, default=0.2, help="proportion of dataset to training and testing sets")
     parser.add_argument('--train_on', nargs='+', help='train on these models', required=True)
 
@@ -286,11 +334,11 @@ if __name__ == '__main__':
     parser.add_argument('--max_path_width', type=int, default=2)
 
     # TransformerTree
-    parser.add_argument('--max_seq_length', type=int, default=1024 * 6)
-    parser.add_argument('--embed_dim', type=int, default=512)
-    parser.add_argument('--num_heads', type=int, default=8)
-    parser.add_argument('--ff_dim', type=int, default=512)
-    parser.add_argument('--num_transformer_blocks', type=int, default=1)
+    parser.add_argument('--max_seq_length', type=int, default=1024 * 1)
+    # parser.add_argument('--embed_dim', type=int, default=512)
+    # parser.add_argument('--num_heads', type=int, default=8)
+    # parser.add_argument('--ff_dim', type=int, default=512)
+    # parser.add_argument('--num_transformer_blocks', type=int, default=1)
 
     # TransformerTree
     parser.add_argument('--d_model', type=int, default=512)

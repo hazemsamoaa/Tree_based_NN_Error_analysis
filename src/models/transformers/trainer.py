@@ -74,17 +74,26 @@ def collate_fn(batch, max_seq_length=None):
 
     y_stacked = torch.stack(y_list)
 
-    return (
-        code_input_ids_padded, code_attention_mask_padded,
-        past_input_ids_padded, past_attention_mask_padded,
-        y_stacked,
-        records
-    )
+    # return (
+    #     code_input_ids_padded, code_attention_mask_padded,
+    #     past_input_ids_padded, past_attention_mask_padded,
+    #     y_stacked,
+    #     records
+    # )
+
+    return {
+        "code_input_ids": code_input_ids_padded,
+        "code_attention_mask": code_attention_mask_padded,
+        "past_input_ids": past_input_ids_padded,
+        "past_attention_mask": past_attention_mask_padded,
+        "labels": y_stacked,
+        "records": records
+    }
 
 
 def trainer(
     model, train, test, y_scaler, device, max_seq_length=510,
-    lr=1e-3, batch_size=8, epochs=1, checkpoint=1000, output_dir=None
+    lr=1e-3, batch_size=8, epochs=1, checkpoint=1000, output_dir=None,
 ):
     train_dataset = TBCCDataset(data=train, scaler=y_scaler)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda b: collate_fn(b, max_seq_length=max_seq_length))
@@ -93,11 +102,15 @@ def trainer(
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=lambda b: collate_fn(b, max_seq_length=max_seq_length))
 
     for batch in train_loader:
-        logger.info(f"[TRAINING] CODE: {batch[0].shape}, PAST: {batch[2].shape}, Y: {batch[-2].shape}")
+        # logger.info(f"[TRAINING] CODE: {batch[0].shape}, PAST: {batch[2].shape}, Y: {batch[-2].shape}")
+        msg = {k: v.shape if torch.is_tensor(v) else len(v) for k, v in batch.items()}
+        logger.info(f"[TRAINING] CODE: {msg}")
         break
 
     for batch in test_loader:
-        logger.info(f"[TESTING] CODE: {batch[0].shape}, PAST: {batch[2].shape}, Y: {batch[-2].shape}")
+        # logger.info(f"[TESTING] CODE: {batch[0].shape}, PAST: {batch[2].shape}, Y: {batch[-2].shape}")
+        msg = {k: v.shape if torch.is_tensor(v) else len(v) for k, v in batch.items()}
+        logger.info(f"[TESTING] CODE: {msg}")
         break
 
     # Cross Entropy loss
@@ -121,20 +134,27 @@ def trainer(
         y_pred_list = []
         y_true_list = []
 
-        for batch_code_input_ids, batch_code_attention_mask, batch_past_input_ids, batch_past_attention_mask, batch_labels, batch_records in train_loader:
-            batch_code_input_ids, batch_code_attention_mask = batch_code_input_ids.to(device), batch_code_attention_mask.to(device)
-            batch_past_input_ids, batch_past_attention_mask = batch_past_input_ids.to(device), batch_past_attention_mask.to(device)
-            batch_labels = batch_labels.to(device)
+        for batch in train_loader:
+            batch = {k: v.to(device) if torch.is_tensor(v) else v for k, v in batch.items()}
+            batch_records = batch["records"]
+            batch_labels = batch["labels"]
+
+            # batch_code_input_ids, batch_code_attention_mask, batch_past_input_ids, batch_past_attention_mask, batch_labels, 
+            # batch_code_input_ids, batch_code_attention_mask = batch_code_input_ids.to(device), batch_code_attention_mask.to(device)
+            # batch_past_input_ids, batch_past_attention_mask = batch_past_input_ids.to(device), batch_past_attention_mask.to(device)
+            # batch_labels = batch_labels.to(device)
 
             # Zero the parameter gradients
             optimizer.zero_grad()
 
             # Forward pass
-            logits = model(
-                batch_code_input_ids, batch_past_input_ids,
-                code_attention_mask=batch_code_attention_mask,
-                past_attention_mask=batch_past_attention_mask
-            )
+            # logits = model(
+            #     code_input_ids=batch_code_input_ids, 
+            #     past_input_ids=batch_past_input_ids,
+            #     code_attention_mask=batch_code_attention_mask,
+            #     past_attention_mask=batch_past_attention_mask
+            # )
+            logits = model(**batch)
 
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
@@ -192,17 +212,24 @@ def trainer(
 
     model.eval()
     with torch.no_grad():
-        for batch_code_input_ids, batch_code_attention_mask, batch_past_input_ids, batch_past_attention_mask, batch_labels, batch_records in test_loader:
-            batch_code_input_ids, batch_code_attention_mask = batch_code_input_ids.to(device), batch_code_attention_mask.to(device)
-            batch_past_input_ids, batch_past_attention_mask = batch_past_input_ids.to(device), batch_past_attention_mask.to(device)
-            batch_labels = batch_labels.to(device)
+        for batch in test_loader:
+            batch = {k: v.to(device) if torch.is_tensor(v) else v for k, v in batch.items()}
+            batch_records = batch["records"]
+            batch_labels = batch["labels"]
+
+            # batch_code_input_ids, batch_code_attention_mask, batch_past_input_ids, batch_past_attention_mask, batch_labels, 
+            # batch_code_input_ids, batch_code_attention_mask = batch_code_input_ids.to(device), batch_code_attention_mask.to(device)
+            # batch_past_input_ids, batch_past_attention_mask = batch_past_input_ids.to(device), batch_past_attention_mask.to(device)
+            # batch_labels = batch_labels.to(device)
 
             # Forward pass
-            logits = model(
-                batch_code_input_ids, batch_past_input_ids,
-                code_attention_mask=batch_code_attention_mask,
-                past_attention_mask=batch_past_attention_mask
-            )
+            # logits = model(
+            #     code_input_ids=batch_code_input_ids, 
+            #     past_input_ids=batch_past_input_ids,
+            #     code_attention_mask=batch_code_attention_mask,
+            #     past_attention_mask=batch_past_attention_mask
+            # )
+            logits = model(**batch)
 
             y_pred = logits.cpu().detach().flatten().numpy().tolist()
             y_true = batch_labels.cpu().detach().flatten().numpy().tolist()
@@ -229,7 +256,7 @@ def trainer(
         # eval_msg = f'Loss: {total_loss / total_samples:.4f}, P-CORR: {p_corr}'
         # logger.info(eval_msg)
 
-        metrics = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
+        eval_metric = report_metrics(y_pred_list.tolist(), y_true_list.tolist())
         metrics.update({"eval": eval_metric})
         eval_msg = f'Loss: {total_loss / total_samples:.4f} MSE: {eval_metric["mse"]:.4f} MAE: {eval_metric["mae"]:.4f} P-CORR: {eval_metric["pcorr"]:.4f}'
         logger.info(eval_msg)

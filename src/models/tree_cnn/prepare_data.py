@@ -119,6 +119,7 @@ def _name(node):
 
 def prepare_nodes(data, per_node=-1, limit=-1):
     node_counts = defaultdict(int)
+    node_counts[None] += 1
     samples = []
 
     has_capacity = lambda x: per_node < 0 or node_counts[x] < per_node

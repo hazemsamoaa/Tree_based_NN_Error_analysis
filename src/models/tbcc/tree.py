@@ -119,7 +119,7 @@ def get_blocks_v1(node, block_seq):
             else:
                 get_blocks_v1(child, block_seq)
             block_seq.append(BlockNode('End'))
-    elif name is 'BlockStatement' or hasattr(node, 'block'):
+    elif name == 'BlockStatement' or hasattr(node, 'block'):
         block_seq.append(BlockNode(name))
         for child in children:
             if get_token(child) not in logic:
